@@ -65,7 +65,9 @@ The application requires API keys for full analysis functionality. You must set 
    VIRUSTOTAL_API_KEY="YOUR_VIRUSTOTAL_API_KEY_HERE"
    GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
    FLASK_DEBUG="False"
+   SECRET_KEY="Your_KEY_HERE"
    ```
+Make sure to remove quotation marks
 
 > [!NOTE]
 > You need an API key that supports v3 lookups (typically a free/public key works for basic scanning)
