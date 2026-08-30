@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Email Analysis Visualization Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        /* ===== Base Reset ===== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Inter", "Segoe UI", Arial, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 40px 40px 40px 100px;
+            /* Space for sidebar */
+            transition: padding-left 0.3s ease;
+        }
+
+        /* ===== Page Styles ===== */
+        h1 {
+            font-size: 1.5rem;
+            color: #1f2937;
+            font-weight: 700;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            color: #222;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3::after {
+            content: "";
+            flex-grow: 1;
+            height: 1px;
+            background-color: #e9ecef;
+        }
+
+        .container {
+            margin: 0 auto;
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            box-shadow: none;
+            max-width: 1600px;
+        }
+
+        /* ===== Filter Bar ===== */
+        .filter-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 50px;
+            padding: 5px 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+            transition: all 0.2s ease;
+            gap: 5px;
+        }
+
+        .filter-bar:focus-within {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+        }
+
+        .date-group {
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 8px;
+        }
+
+        .input-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .date-input {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .divider {
+            width: 1px;
+            height: 24px;
+            background: #e0e0e0;
+        }
+
+        .filter-btn {
+            background: #0d6efd;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-left: 5px;
+        }
+
+        .filter-btn:hover {
+            background: #0b5ed7;
+        }
+
+        .filter-btn.clear-btn {
+            background: #fff;
+            color: #6c757d;
+            border: 1px solid #ced4da;
+        }
+
+        .filter-btn.clear-btn:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .filter-bar {
+                flex-direction: column;
+                border-radius: 16px;
+                padding: 15px;
+                gap: 15px;
+                width: 100%;
+            }
+
+            .divider {
+                width: 100%;
+                height: 1px;
+                margin: 5px 0;
+            }
+
+            .date-group {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .filter-btn {
+                width: 100%;
+            }
+        }
+
+        .back-link {
+            display: inline-block;
+            font-size: 0.95rem;
+            background: #e7f0ff;
+            color: #0d6efd;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s, transform 0.2s;
+            margin-bottom: 20px;
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            background: #d6e4ff;
+            transform: translateY(-1px);
+        }
+
+        /* ===== New: Statistic Grid (KPI Cards) ===== */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-top: 25px;
+        }
+
+        .stat-card {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            flex-shrink: 0;
+        }
+
+        .stat-content {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #212529;
+            line-height: 1.2;
+            transition: color 0.3s;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Card Variants */
+        .stat-card.blue .stat-icon {
+            background: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+        }
+
+        .stat-card.red .stat-icon {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .stat-card.purple .stat-icon {
+            background: rgba(111, 66, 193, 0.1);
+            color: #6f42c1;
+        }
+
+        /* ===== Table Style ===== */
+        .table-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin-top: 25px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .table-container:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        #topIpsTable,
+        #recentAlertsTable,
+        #vtUsageTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #topIpsTable th,
+        #recentAlertsTable th,
+        #vtUsageTable th,
+        #topIpsTable td,
+        #recentAlertsTable td,
+        #vtUsageTable td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f1f3f5;
+            font-size: 0.9rem;
+        }
+
+        #topIpsTable th,
+        #recentAlertsTable th,
+        #vtUsageTable th {
+            background: #eef3ff;
+            color: #0d6efd;
+            font-weight: 600;
+        }
+
+        #topIpsTable tr:last-child td,
+        #recentAlertsTable tr:last-child td,
+        #vtUsageTable tr:last-child td {
+            border-bottom: none;
+        }
+
+        #topIpsTable code,
+        #vtUsageTable code {
+            background: #f8f9fa;
+            padding: 4px 6px;
+            border-radius: 4px;
+        }
+
+
+        /* ===== Chart Grid ===== */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .chart-card {
+            background: #fff;
+            padding-top: 10px;
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-bottom: 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .chart-card.wide {
+            grid-column: span 2;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        @media (max-width: 1024px) {
+            .chart-card.wide {
+                grid-column: span 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 20px;
+            }
+        }
+
+        /* ===== Heatmap ===== */
+        .heatmap-section {
+            margin-top: 30px;
+            margin-bottom: 10px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .heatmap-section:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: 50px repeat(24, 1fr);
+            gap: 4px;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 3px;
+            background-color: #f8f9fa;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.3);
+            z-index: 10;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            border: 1px solid #ccc;
+        }
+
+        .custom-tooltip {
+            position: fixed;
+            background: #212529;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .heatmap-label {
+            font-size: 0.75rem;
+            color: #6c757d;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+        }
+
+        .heatmap-header {
+            font-size: 0.7rem;
+            color: #adb5bd;
+            text-align: center;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 4px;
+        }
+
+        .legend-container {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-top: 5px;
+            font-size: 0.75rem;
+            color: #6c757d;
+        }
+
+        .legend-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* ===== Heatmap Controls ===== */
+        .heatmap-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .hm-select {
+            padding: 6px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background-color: #fff;
+            cursor: pointer;
+        }
+
+        .hm-select:focus {
+            outline: none;
+            border-color: #0d6efd;
+        }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-box {
+            background: #fff;
+            padding: 0;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding: 20px 25px;
+            flex-shrink: 0;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .modal-close {
+            cursor: pointer;
+            font-size: 1.8rem;
+            color: #999;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .hm-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .hm-table th,
+        .hm-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .hm-table th {
+            background: #f8f9fa;
+            color: #6c757d;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .hm-table tr:hover {
+            background: #f1f3f5;
+        }
+
+        #modalBody {
+            padding-top: 0px;
+            padding-left: 5px;
+            padding-right: 5px;
+            overflow-y: auto;
+        }
+
+        hr.rounded {
+            border-top: 4px solid #B6D4FE;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <div>
+            <h1 class="text-gradient">Security Operations Dashboard</h1>
+            <p style="color:#6b7280; font-size:0.875rem;">Real-time email threat monitoring and analysis</p>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <h2 style="margin-top:20px; margin-bottom:15px; color:#374151;">Lifetime Statistics</h2>
+        <div class="stat-grid">
+            <div class="stat-card blue">
+                <div class="stat-icon">📥</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="lifetimeSubmissions">0</span>
+                    <span class="stat-label">Submissions</span>
+                </div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-icon">🛡️</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="lifetimeMalicious">0</span>
+                    <span class="stat-label">Malicious Identified</span>
+                </div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="lifetimeRatio">0%</span>
+                    <span class="stat-label">Malicious Ratio</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="heatmap-section">
+            <h3 id="heatmapTitle" style="margin-top:0;">Submission Intensity (Day vs Hour)</h3>
+            <div class="heatmap-controls">
+                <select id="hmYear" class="hm-select"></select>
+                <select id="hmMonth" class="hm-select"></select>
+                <select id="hmWeek" class="hm-select"></select>
+                <button id="hmReset" class="hm-select" style="background: #f8f9fa; font-weight: 600;">Reset</button>
+            </div>
+            <div class="heatmap-grid" id="heatmap">
+                <!-- Populated by JS -->
+            </div>
+            <div class="legend-container">
+                <span>Less</span>
+                <div class="legend-box" style="background: #e7f1ff"></div>
+                <div class="legend-box" style="background: #b6d4fe"></div>
+                <div class="legend-box" style="background: #6ea8fe"></div>
+                <div class="legend-box" style="background: #0d6efd"></div>
+                <span>More</span>
+            </div>
+        </div>
+
+        <div class="dividers" style="margin-top:30px; margin-bottom:20px;">        
+            <hr class="rounded">
+        </div>
+
+        <h2 style="margin-top: 30px;">Threat Intelligence Visuals</h2>
+        <div class="filter-container">
+            <div class="filter-bar">
+                <div class="date-group">
+                    <span class="input-label">Start</span>
+                    <input type="date" id="startDate" class="date-input">
+                </div>
+                <div class="divider"></div>
+                <div class="date-group">
+                    <span class="input-label">End</span>
+                    <input type="date" id="endDate" class="date-input">
+                </div>
+                <button onclick="filterAndRedrawCharts()" class="filter-btn">Apply Filter</button>
+                <button onclick="resetFilters()" class="filter-btn clear-btn">Clear</button>
+            </div>
+        </div>
+
+        <h3 style="margin-top:20px; margin-bottom:15px; color:#374151;">Filtered Statistics</h3>
+        <div class="stat-grid" style="margin-bottom: 25px;">
+            <div class="stat-card blue">
+                <div class="stat-icon">📥</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="totalSubmissions">0</span>
+                    <span class="stat-label">Submissions</span>
+                </div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-icon">🛡️</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="totalMalicious">0</span>
+                    <span class="stat-label">Malicious Identified</span>
+                </div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <span class="stat-value" id="maliciousRatio">0%</span>
+                    <span class="stat-label">Malicious Ratio</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-grid">
+            <div class="chart-card wide">
+                <h3 id="timeSeriesTitle">Submissions Over Time</h3>
+                <canvas id="timeSeriesChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Submissions by Status</h3>
+                <canvas id="statusChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Submissions by Weekday</h3>
+                <canvas id="weekdayChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Malicious vs Clean</h3>
+                <canvas id="threatSplitChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Attachment Types</h3>
+                <canvas id="attachmentChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+                <h3>Submissions by Hour</h3>
+                <canvas id="hourChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+                <h3>IOCs Flagged by Type</h3>
+                <canvas id="iocTypeChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+                <h3>Top Flagged Senders</h3>
+                <canvas id="senderChart"></canvas>
+            </div>
+            <div class="chart-card wide">
+                <h3>Top Sender Domains</h3>
+                <canvas id="domainChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="dividers" style="margin-top:30px; margin-bottom:20px;">        
+            <hr class="rounded">
+        </div>
+
+        <!-- Recent Alerts Table (Full Width) -->
+        <div class="table-container" style="margin-top:25px;">
+            <h3 style="margin-top:0;">Recent Critical Alerts (Today)</h3>
+            <table id="recentAlertsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Subject</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:#999; padding:15px;">No alerts.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Top IPs Table (Full Width) -->
+        <div class="table-container" style="margin-top:25px;">
+            <h3 style="margin-top:0;">Top 5 Most Frequent Forensic IPs</h3>
+            <table id="topIpsTable">
+                <thead>
+                    <tr>
+                        <th>IP Address</th>
+                        <th>Count</th>
+                        <th>Country</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if top_ips %}
+                    {% for row in top_ips %}
+                    <tr>
+                        <td><code>{{ row.ip }}</code></td>
+                        <td>{{ row.count }}</td>
+                        <td>{{ row.country }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="3">No IP data found.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- VirusTotal Local Usage Table -->
+        <div class="table-container" style="margin-top:25px;">
+            <h3 style="margin-top:0;">Consumption by endpoint for <span id="vtUsageDate">...</span></h3>
+            <table id="vtUsageTable">
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="2" style="text-align:center; color:#999;">Loading usage data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="custom-tooltip" class="custom-tooltip"></div>
+
+    <!-- Drill-down Modal -->
+    <div id="hmModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Details</div>
+                <div class="modal-close" onclick="closeModal()">&times;</div>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        let fullData = [];
+        let statusChart, timeSeriesChart, iocTypeChart, senderChart, attachmentChart, domainChart, threatSplitChart, weekdayChart, hourChart;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAnalysisData();
+            initHeatmapControls();
+            fetchVtUsage();
+
+            // Listen for analysis completion events from global_notifications.js
+            window.addEventListener('analysisCompleted', () => {
+                fetchAnalysisData();
+                fetchVtUsage();
+            });
+        });
+
+        function fetchAnalysisData() {
+            fetch('/api/analysis_data')
+                .then(response => response.json())
+                .then(data => {
+                    fullData = data;
+                    
+                    // --- Evaluate and render Lifetime Statistics ---
+                    const lifetimeDataForStats = processData(data);
+                    document.getElementById('lifetimeSubmissions').textContent = lifetimeDataForStats.totalSubmissions;
+                    document.getElementById('lifetimeMalicious').textContent = lifetimeDataForStats.totalMalicious;
+                    
+                    const lifetimeRatioEl = document.getElementById('lifetimeRatio');
+                    const lifetimeRatioVal = parseFloat(lifetimeDataForStats.maliciousRatio);
+                    lifetimeRatioEl.textContent = lifetimeRatioVal + '%';
+                    
+                    lifetimeRatioEl.style.color = '#0d6efd'; // Default Blue
+                    if (lifetimeRatioVal >= 10) {
+                        lifetimeRatioEl.style.color = '#dc3545'; // Red
+                    } else if (lifetimeRatioVal > 0) {
+                        lifetimeRatioEl.style.color = '#ffc107'; // Yellow
+                    }
+                    // -----------------------------------------------
+
+                    // Set default filter dates to this week (Monday to Sunday)
+                    const today = new Date();
+                    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday...
+                    const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                    
+                    const monday = new Date(today);
+                    monday.setDate(today.getDate() + distanceToMonday);
+                    
+                    const sunday = new Date(monday);
+                    sunday.setDate(monday.getDate() + 6);
+
+                    const formatDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                    
+                    document.getElementById('startDate').value = formatDate(monday);
+                    document.getElementById('endDate').value = formatDate(sunday);
+
+                    // Update Recent Alerts for Today
+                    const todayStr = formatDate(today);
+                    const todayData = fullData.filter(item => {
+                        const submissionDate = item.submission_time.split(' ')[0];
+                        return submissionDate === todayStr;
+                    });
+                    const todayProcessed = processData(todayData);
+                    updateRecentAlertsTable(todayProcessed.recentMalicious);
+
+                    filterAndRedrawCharts();
+
+                    // Initial Heatmap Draw (using default controls)
+                    filterHeatmap();
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        function resetFilters() {
+            if (fullData.length > 0) {
+                const today = new Date();
+                const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday...
+                const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                
+                const monday = new Date(today);
+                monday.setDate(today.getDate() + distanceToMonday);
+                
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+
+                const formatDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                
+                document.getElementById('startDate').value = formatDate(monday);
+                document.getElementById('endDate').value = formatDate(sunday);
+                
+                filterAndRedrawCharts();
+            }
+        }
+
+        function filterAndRedrawCharts() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            const filteredData = fullData.filter(item => {
+                const submissionDate = item.submission_time.split(' ')[0];
+                return submissionDate >= startDate && submissionDate <= endDate;
+            });
+
+            let dataForCharts;
+
+            if (filteredData.length === 0) {
+                // Update stats and charts to show 0/N/A
+                dataForCharts = processData([]);
+                
+                // Fallback for Top IPs: use the most recent date available in fullData
+                if (fullData.length > 0) {
+                    let latestDate = '';
+                    fullData.forEach(item => {
+                        const date = item.submission_time.split(' ')[0];
+                        if (date > latestDate) latestDate = date;
+                    });
+                    const fallbackData = fullData.filter(item => item.submission_time.startsWith(latestDate));
+                    dataForCharts.topIPs = processData(fallbackData).topIPs;
+                }
+
+                updateStatistics(dataForCharts);
+                if (statusChart) statusChart.destroy();
+                if (timeSeriesChart) timeSeriesChart.destroy();
+                if (iocTypeChart) iocTypeChart.destroy();
+                if (senderChart) senderChart.destroy();
+                if (attachmentChart) attachmentChart.destroy();
+                if (domainChart) domainChart.destroy();
+                alert('No data found for the selected date range. Displaying Top IPs from the last analyzed date.');
+                return;
+            }
+
+            dataForCharts = processData(filteredData);
+            
+            // Check if there are any IPs in the filtered data, if not, fallback to latest analyzed date
+            if (dataForCharts.topIPs.length === 0 && fullData.length > 0) {
+                let latestDate = '';
+                fullData.forEach(item => {
+                    const date = item.submission_time.split(' ')[0];
+                    if (date > latestDate) latestDate = date;
+                });
+                const fallbackData = fullData.filter(item => item.submission_time.startsWith(latestDate));
+                dataForCharts.topIPs = processData(fallbackData).topIPs;
+            }
+
+            // Update Statistics and Table
+            updateStatistics(dataForCharts);
+
+            // Note: Heatmap is now updated independently via filterHeatmap()
+
+            // Destroy existing charts before redrawing
+            if (statusChart) statusChart.destroy();
+            if (timeSeriesChart) timeSeriesChart.destroy();
+            if (iocTypeChart) iocTypeChart.destroy();
+            if (senderChart) senderChart.destroy();
+            if (attachmentChart) attachmentChart.destroy();
+            if (domainChart) domainChart.destroy();
+            if (threatSplitChart) threatSplitChart.destroy();
+            if (weekdayChart) weekdayChart.destroy();
+            if (hourChart) hourChart.destroy();
+
+            // Draw Charts
+            statusChart = drawStatusChart(dataForCharts.statusCounts);
+            timeSeriesChart = drawTimeSeriesChart(dataForCharts.timeSeries);
+            iocTypeChart = drawIocTypeChart(dataForCharts.iocCounts);
+            senderChart = drawSenderChart(dataForCharts.senderFlags);
+            attachmentChart = drawAttachmentChart(dataForCharts.attachmentCounts);
+            domainChart = drawDomainChart(dataForCharts.domainCounts);
+            threatSplitChart = drawThreatSplitChart(dataForCharts.totalMalicious, dataForCharts.totalSubmissions);
+            weekdayChart = drawWeekdayChart(dataForCharts.weekdayCounts);
+            hourChart = drawHourChart(dataForCharts.hourCounts);
+        }
+
+        function processData(data) {
+            const statusCounts = {};
+            const timeSeries = {};
+            let urlIocCount = 0;
+            let fileIocCount = 0;
+            let ipIocCount = 0;
+            const senderFlags = {};
+            let totalMalicious = 0;
+            const ipCounts = {};
+            const attachmentCounts = {};
+            const domainCounts = {};
+            const recentMalicious = [];
+            const weekdayCounts = { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };
+            const hourCounts = Array(24).fill(0);
+
+            data.forEach(item => {
+                // 1. Status Counts
+                statusCounts[item.status] = (statusCounts[item.status] || 0) + 1;
+
+                // 2. Time Series (Daily submissions)
+                const date = item.submission_time.split(' ')[0];
+                timeSeries[date] = (timeSeries[date] || 0) + 1;
+
+                // Weekday & Hour distribution
+                const dObj = new Date(item.submission_time);
+                let dIndex = dObj.getDay() - 1; // Mon=0 ... Sun=6
+                if (dIndex < 0) dIndex = 6;
+                const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                weekdayCounts[dayNames[dIndex]]++;
+                hourCounts[dObj.getHours()]++;
+
+                // 3. IOC Type Counts
+                urlIocCount += (item.vt_score.url_flags || 0);
+                fileIocCount += (item.vt_score.file_flags || 0);
+                ipIocCount += (item.vt_score.ip_flags || 0);
+
+                // 4. Sender Flag Counts
+                if (item.total_flags > 0 && item.sender && item.sender !== 'N/A') {
+                    senderFlags[item.sender] = (senderFlags[item.sender] || 0) + item.total_flags;
+                }
+
+                // 5. Total Malicious Count
+                if (item.status === 'MALICIOUS_DETECTED') {
+                    totalMalicious++;
+                    recentMalicious.push(item);
+                }
+
+                // 6. Attachments
+                if (item.uploaded_filename && item.uploaded_filename.includes('.')) {
+                    const ext = item.uploaded_filename.split('.').pop().toLowerCase();
+                    attachmentCounts[ext] = (attachmentCounts[ext] || 0) + 1;
+                }
+
+                // 7. Domains
+                if (item.sender && item.sender.includes('@')) {
+                    try {
+                        // Handle "Name <email@domain.com>" or "email@domain.com"
+                        const parts = item.sender.split('@');
+                        let domain = parts[parts.length - 1];
+                        if (domain.includes('>')) domain = domain.split('>')[0];
+                        domain = domain.trim().toLowerCase();
+                        domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+                    } catch (e) { }
+                }
+
+                // 6. Top IPs (received_ips is an array of strings)
+                if (item.received_ips && Array.isArray(item.received_ips)) {
+                    item.received_ips.forEach(ip => {
+                        if (ip && ip.includes('.')) { // Simple check to filter out non-IP values
+                            ipCounts[ip] = (ipCounts[ip] || 0) + 1;
+                        }
+                    });
+                }
+            });
+
+            const sortedTimeSeries = Object.keys(timeSeries)
+                .sort()
+                .map(date => ({ date: date, count: timeSeries[date] }));
+
+            const sortedSenders = Object.entries(senderFlags)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 5); // Top 5 Senders
+
+            // Sort IP counts and take top 5
+            const sortedIPs = Object.entries(ipCounts)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 5); // Top 5 IPs
+
+            // Sort Recent Malicious by time desc
+            recentMalicious.sort((a, b) => new Date(b.submission_time) - new Date(a.submission_time));
+
+            // Top 5 Domains
+            const sortedDomains = Object.entries(domainCounts)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 5);
+
+            return {
+                statusCounts: statusCounts,
+                timeSeries: sortedTimeSeries,
+                iocCounts: { 'URL Flags': urlIocCount, 'File Flags': fileIocCount, 'IP Flags': ipIocCount },
+                senderFlags: Object.fromEntries(sortedSenders),
+                totalSubmissions: data.length,
+                totalMalicious: totalMalicious,
+                maliciousRatio: data.length > 0 ? (totalMalicious / data.length * 100).toFixed(1) : '0.0',
+                topIPs: sortedIPs,
+                attachmentCounts: attachmentCounts,
+                domainCounts: Object.fromEntries(sortedDomains),
+                recentMalicious: recentMalicious.slice(0, 5),
+                weekdayCounts: weekdayCounts,
+                hourCounts: hourCounts
+            };
+        }
+
+        function getStatusDisplay(status) {
+            const map = {
+                'MALICIOUS_DETECTED': 'Malicious Detected',
+                'CLEAN_NO_IOCS': 'Clean No IOCs',
+                'CLEAN_ANALYZED': 'Clean Analyzed',
+                'PENDING': 'Pending',
+                'ANALYZING_VT': 'Analyzing VT'
+            };
+            return map[status] || status.replace(/_/g, ' ');
+        }
+
+        // ===== Statistic and Table Rendering Functions =====
+
+        function updateStatistics(data) {
+            document.getElementById('totalSubmissions').textContent = data.totalSubmissions;
+            document.getElementById('totalMalicious').textContent = data.totalMalicious;
+
+            const ratioElement = document.getElementById('maliciousRatio');
+            const ratioValue = parseFloat(data.maliciousRatio);
+            ratioElement.textContent = ratioValue + '%';
+
+            // Conditional styling for the ratio
+            ratioElement.style.color = '#0d6efd'; // Default Blue
+            if (ratioValue >= 10) {
+                ratioElement.style.color = '#dc3545'; // Red for high risk
+            } else if (ratioValue > 0) {
+                ratioElement.style.color = '#ffc107'; // Yellow/Orange for moderate risk
+            }
+
+            updateIpsTable(data.topIPs);
+        }
+
+        function updateIpsTable(topIPs) {
+            const tableBody = document.getElementById('topIpsTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+
+            if (topIPs.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 3;
+                cell.textContent = "No IPs logged in filtered results.";
+                cell.style.textAlign = 'center';
+                return;
+            }
+
+            topIPs.forEach(([ip, count]) => {
+                const row = tableBody.insertRow();
+                const cellIp = row.insertCell(0);
+                const cellCount = row.insertCell(1);
+                const cellCountry = row.insertCell(2);
+
+                cellIp.innerHTML = `<code>${ip}</code>`;
+                cellCount.textContent = count;
+                cellCountry.textContent = 'Loading...';
+
+                // Fetch Country
+                fetch(`http://ip-api.com/json/${ip}?fields=country`)
+                    .then(res => res.json())
+                    .then(data => {
+                        cellCountry.textContent = data.country || 'Unknown';
+                    })
+                    .catch(() => { cellCountry.textContent = 'Unknown'; });
+            });
+        }
+
+        function updateRecentAlertsTable(alerts) {
+            const tableBody = document.getElementById('recentAlertsTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+
+            if (alerts.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#999; padding:15px;">No alerts.</td></tr>';
+                return;
+            }
+
+            alerts.forEach(item => {
+                const row = tableBody.insertRow();
+                const timeStr = item.submission_time.split(' ')[1].substring(0, 5); // HH:MM
+
+                const score = (typeof item.total_flags === 'number')
+                    ? item.total_flags
+                    : (((item.vt_score?.file_flags || 0) + (item.vt_score?.url_flags || 0) + (item.vt_score?.ip_flags || 0)) || 0);
+
+                const isMalicious = item.status === 'MALICIOUS_DETECTED';
+                const statusHtml = `<span style="padding:2px 6px; border-radius:4px; font-size:0.8rem; background:${isMalicious ? '#f8d7da' : '#d1e7dd'}; color:${isMalicious ? '#842029' : '#0f5132'}">${getStatusDisplay(item.status)}</span>`;
+
+                row.innerHTML = `
+                    <td style="font-size:0.9rem; color:#666; white-space:nowrap;">${timeStr}</td>
+                    <td style="font-size:0.9rem; color:#333;">${score}</td>
+                    <td>${statusHtml}</td>
+                    <td style="font-weight:500;" title="${item.subject}"><a href="/detail/${item.id}" target="_blank" style="color:inherit; text-decoration:none;">${item.subject}</a></td>
+                `;
+            });
+        }
+
+        // ===== Heatmap Controls & Logic =====
+        function initHeatmapControls() {
+            const yearSelect = document.getElementById('hmYear');
+            const monthSelect = document.getElementById('hmMonth');
+            const weekSelect = document.getElementById('hmWeek');
+            const resetBtn = document.getElementById('hmReset');
+
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth(); // 0-11
+
+            // Populate Years (Current - 2 to Current + 1)
+            for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (y === currentYear) opt.selected = true;
+                yearSelect.appendChild(opt);
+            }
+
+            // Populate Months
+            const monthNames = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+            monthNames.forEach((m, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = m;
+                if (index === currentMonth) opt.selected = true;
+                monthSelect.appendChild(opt);
+            });
+
+            // Event Listeners
+            yearSelect.addEventListener('change', () => { updateWeekOptions(); filterHeatmap(); });
+            monthSelect.addEventListener('change', () => { updateWeekOptions(); filterHeatmap(); });
+            weekSelect.addEventListener('change', filterHeatmap);
+            resetBtn.addEventListener('click', () => {
+                const now = new Date();
+                yearSelect.value = now.getFullYear();
+                monthSelect.value = now.getMonth();
+                updateWeekOptions();
+                filterHeatmap();
+            });
+
+            // Initialize Weeks
+            updateWeekOptions();
+        }
+
+        function updateWeekOptions() {
+            const year = parseInt(document.getElementById('hmYear').value);
+            const month = parseInt(document.getElementById('hmMonth').value);
+            const weekSelect = document.getElementById('hmWeek');
+
+            // Reset options
+            weekSelect.innerHTML = '';
+
+            // Option: Whole Month
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'Whole Month';
+            weekSelect.appendChild(allOpt);
+
+            // Calculate Weeks (Mon-Sun blocks)
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+
+            let current = new Date(firstDay);
+            let weekNum = 1;
+            const today = new Date();
+            let weekToSelect = 'all';
+
+            // Helper to format date as YYYY-MM-DD in local time
+            const formatLocal = (d) => {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            };
+
+            while (current <= lastDay) {
+                // Find distance to next Sunday (0). If current is Sun(0), dist is 0.
+                const distToSun = (7 - current.getDay()) % 7;
+                let weekEnd = new Date(current);
+                weekEnd.setDate(current.getDate() + distToSun);
+                if (weekEnd > lastDay) weekEnd = new Date(lastDay);
+
+                const startStr = formatLocal(current);
+                const endStr = formatLocal(weekEnd);
+                const val = `${startStr}|${endStr}`;
+
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = `Week ${weekNum} (${current.getDate()} - ${weekEnd.getDate()})`;
+                weekSelect.appendChild(opt);
+
+                // Check if today falls in this week
+                const t = formatLocal(today);
+                if (t >= startStr && t <= endStr) {
+                    weekToSelect = val;
+                }
+
+                // Move to next day after weekEnd
+                current = new Date(weekEnd);
+                current.setDate(current.getDate() + 1);
+                weekNum++;
+            }
+
+            // Default to current week if we are in the current month/year, otherwise 'all'
+            weekSelect.value = weekToSelect;
+        }
+
+        function filterHeatmap() {
+            if (!fullData || fullData.length === 0) return;
+
+            const year = parseInt(document.getElementById('hmYear').value);
+            const month = parseInt(document.getElementById('hmMonth').value);
+            const weekVal = document.getElementById('hmWeek').value;
+
+            const titleEl = document.getElementById('heatmapTitle');
+            if (weekVal === 'all') {
+                titleEl.textContent = 'Submission Intensity';
+            } else {
+                titleEl.textContent = 'Submission Intensity (Day vs Hour)';
+            }
+
+            const filtered = fullData.filter(item => {
+                const d = new Date(item.submission_time);
+                if (d.getFullYear() !== year) return false;
+                if (d.getMonth() !== month) return false;
+
+                if (weekVal !== 'all') {
+                    const [start, end] = weekVal.split('|');
+                    const dStr = item.submission_time.split(' ')[0];
+                    if (dStr < start || dStr > end) return false;
+                }
+                return true;
+            });
+
+            if (weekVal === 'all') {
+                drawMonthlyCalendar(filtered, year, month);
+            } else {
+                drawHeatmap(filtered, weekVal);
+            }
+        }
+
+        // ===== Heatmap Function =====
+        function drawHeatmap(data, weekRange) {
+            const container = document.getElementById('heatmap');
+            container.innerHTML = '';
+
+            // Reset Grid Styles for Day x Hour View
+            container.style.gridTemplateColumns = '70px repeat(24, 1fr)';
+            container.style.overflowX = 'auto';
+
+            // Initialize 7 days x 24 hours
+            // Store count and unique dates for tooltip
+            const matrix = Array(7).fill(null).map(() => Array(24).fill(null).map(() => ({ count: 0, dates: new Set() })));
+            let maxCount = 0;
+
+            data.forEach(item => {
+                const d = new Date(item.submission_time);
+                // Adjust to make Monday index 0 (Sunday is 0 in JS)
+                let dayIndex = d.getDay() - 1;
+                if (dayIndex < 0) dayIndex = 6;
+
+                const hourIndex = d.getHours();
+
+                const cell = matrix[dayIndex][hourIndex];
+                cell.count++;
+
+                // Store date YYYY-MM-DD for tooltip
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                cell.dates.add(`${y}-${m}-${day}`);
+
+                if (cell.count > maxCount) maxCount = cell.count;
+            });
+
+            // Calculate dates for labels if weekRange is provided
+            let weekDates = [];
+            if (weekRange && weekRange.includes('|')) {
+                const [startStr] = weekRange.split('|');
+                const [y, m, d] = startStr.split('-').map(Number);
+                const startDate = new Date(y, m - 1, d);
+
+                // Find Monday of this week block
+                let dayIndex = startDate.getDay() - 1; // Mon=0 ... Sun=6
+                if (dayIndex < 0) dayIndex = 6;
+
+                const monday = new Date(startDate);
+                monday.setDate(startDate.getDate() - dayIndex);
+
+                for (let i = 0; i < 7; i++) {
+                    const current = new Date(monday);
+                    current.setDate(monday.getDate() + i);
+                    weekDates.push(String(current.getDate()).padStart(2, '0'));
+                }
+            }
+
+            // Render Header (Hours 0-23)
+            container.appendChild(document.createElement('div')); // Empty corner
+            for (let h = 0; h < 24; h++) {
+                const th = document.createElement('div');
+                th.className = 'heatmap-header';
+                th.textContent = h;
+                container.appendChild(th);
+            }
+
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const colors = ['#e7f1ff', '#b6d4fe', '#6ea8fe', '#0d6efd']; // Light to Dark Blue
+
+            for (let d = 0; d < 7; d++) {
+                const label = document.createElement('div');
+                label.className = 'heatmap-label';
+                let labelText = days[d];
+                if (weekDates.length === 7) {
+                    labelText += ` (${weekDates[d]})`;
+                }
+                label.textContent = labelText;
+                container.appendChild(label);
+
+                for (let h = 0; h < 24; h++) {
+                    const cellData = matrix[d][h];
+                    const count = cellData.count;
+                    const cell = document.createElement('div');
+
+                    // Determine color
+                    let color = '#f8f9fa'; // Empty
+                    if (count > 0) {
+                        const ratio = count / maxCount;
+                        if (ratio < 0.25) color = colors[0];
+                        else if (ratio < 0.5) color = colors[1];
+                        else if (ratio < 0.75) color = colors[2];
+                        else color = colors[3];
+                    }
+
+                    cell.style.backgroundColor = color;
+
+                    // Construct Tooltip
+                    let tooltip = `${days[d]} @ ${h}:00 - ${count} Submissions`;
+                    if (count > 0) {
+                        const uniqueDates = Array.from(cellData.dates).sort();
+                        if (uniqueDates.length === 1) {
+                            // Single date (e.g. Week view)
+                            tooltip = `${uniqueDates[0]} @ ${h}:00 - ${count} Submissions`;
+                        } else {
+                            // Multiple dates (e.g. Month view)
+                            tooltip = `${days[d]} (${uniqueDates.length} dates) @ ${h}:00 - ${count} Submissions`;
+                        }
+                    }
+                    cell.addEventListener('mouseenter', (e) => showTooltip(e, tooltip));
+                    cell.addEventListener('mousemove', (e) => moveTooltip(e));
+                    cell.addEventListener('mouseleave', hideTooltip);
+                    cell.onclick = () => showHeatmapDetails(data, d, h);
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        // ===== Monthly Calendar View =====
+        function drawMonthlyCalendar(data, year, month) {
+            const container = document.getElementById('heatmap');
+            container.innerHTML = '';
+
+            // Change grid layout for calendar (7 columns)
+            container.style.gridTemplateColumns = 'repeat(7, 1fr)';
+            container.style.overflowX = 'visible';
+
+            // Heatmaps Headers
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            days.forEach(d => {
+                const th = document.createElement('div');
+                th.className = 'heatmap-header';
+                th.textContent = d;
+                th.style.fontWeight = 'bold';
+                th.style.paddingBottom = '10px';
+                container.appendChild(th);
+            });
+
+            // Calculate days
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+
+            // Adjust for Monday start (0=Sun, 1=Mon...)
+            let startDayIndex = firstDay.getDay() - 1;
+            if (startDayIndex < 0) startDayIndex = 6;
+
+            // Aggregate data by day
+            const dayCounts = new Array(daysInMonth + 1).fill(0);
+            let maxCount = 0;
+
+            data.forEach(item => {
+                const d = new Date(item.submission_time);
+                if (d.getFullYear() === year && d.getMonth() === month) {
+                    const dateNum = d.getDate();
+                    dayCounts[dateNum]++;
+                    if (dayCounts[dateNum] > maxCount) maxCount = dayCounts[dateNum];
+                }
+            });
+
+            // Empty cells for padding before 1st of month
+            for (let i = 0; i < startDayIndex; i++) {
+                const cell = document.createElement('div');
+                container.appendChild(cell);
+            }
+
+            const colors = ['#e7f1ff', '#b6d4fe', '#6ea8fe', '#0d6efd'];
+
+            // Day cells
+            for (let i = 1; i <= daysInMonth; i++) {
+                const count = dayCounts[i];
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                cell.style.aspectRatio = '3.5';
+                cell.style.display = 'flex';
+                cell.style.flexDirection = 'column';
+                cell.style.justifyContent = 'center';
+                cell.style.alignItems = 'center';
+                cell.style.position = 'relative';
+                cell.style.border = '1px solid #eee';
+
+                let color = '#f8f9fa';
+                if (count > 0) {
+                    const ratio = count / maxCount;
+                    if (ratio < 0.25) color = colors[0];
+                    else if (ratio < 0.5) color = colors[1];
+                    else if (ratio < 0.75) color = colors[2];
+                    else color = colors[3];
+                }
+                cell.style.backgroundColor = color;
+
+                cell.innerHTML = `<span style="position:absolute; top:6px; left:8px; width:24px; height:24px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:0.8rem; color:#6c757d; box-shadow:0 1px 2px rgba(0,0,0,0.1);">${i}</span>`;
+                if (count > 0) {
+                    cell.innerHTML += `<div style="text-align:center; margin-top:12px; color:black;">
+                        <span style="font-size:1.2rem; font-weight:bold; display:block; line-height:1;">${count}</span>
+                        <span style="font-size:0.6rem; opacity:0.8;">EMAILS</span>
+                    </div>`;
+                }
+
+                const dateStr = `${String(i).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}`;
+                const tooltip = `${dateStr} - ${count} Submissions`;
+
+                cell.addEventListener('mouseenter', (e) => showTooltip(e, tooltip));
+                cell.addEventListener('mousemove', (e) => moveTooltip(e));
+                cell.addEventListener('mouseleave', hideTooltip);
+                cell.onclick = () => showDailyDetails(data, year, month, i);
+
+                container.appendChild(cell);
+            }
+        }
+
+        // ===== Modal Logic =====
+        function showTooltip(e, text) {
+            const tooltipEl = document.getElementById('custom-tooltip');
+            tooltipEl.textContent = text;
+            tooltipEl.style.display = 'block';
+            moveTooltip(e);
+        }
+
+        function moveTooltip(e) {
+            const tooltipEl = document.getElementById('custom-tooltip');
+            const x = e.clientX + 15;
+            const y = e.clientY + 15;
+            tooltipEl.style.left = x + 'px';
+            tooltipEl.style.top = y + 'px';
+        }
+
+        function hideTooltip() {
+            const tooltipEl = document.getElementById('custom-tooltip');
+            tooltipEl.style.display = 'none';
+        }
+
+        function showHeatmapDetails(data, dayIndex, hour) {
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const dayName = days[dayIndex];
+
+            // Filter data for this specific slot
+            const slotData = data.filter(item => {
+                const d = new Date(item.submission_time);
+                let dIndex = d.getDay() - 1;
+                if (dIndex < 0) dIndex = 6;
+                return dIndex === dayIndex && d.getHours() === hour;
+            });
+
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            const uniqueDates = [...new Set(slotData.map(item => {
+                const d = new Date(item.submission_time);
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yyyy = d.getFullYear();
+                return `${dd}-${mm}-${yyyy}`;
+            }))];
+            const dateStr = uniqueDates.length > 0 ? ` (${uniqueDates.join(', ')})` : '';
+            modalTitle.textContent = `${dayName} @ ${hour}:00${dateStr} - ${slotData.length} Submissions`;
+
+            modalBody.innerHTML = renderModalTable(slotData);
+            document.getElementById('hmModal').style.display = 'flex';
+        }
+
+        function showDailyDetails(data, year, month, dateNum) {
+            const slotData = data.filter(item => {
+                const d = new Date(item.submission_time);
+                return d.getFullYear() === year && d.getMonth() === month && d.getDate() === dateNum;
+            });
+
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+
+            const dateStr = `${String(dateNum).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}`;
+            modalTitle.textContent = `${dateStr} - ${slotData.length} Submissions`;
+
+            modalBody.innerHTML = renderModalTable(slotData);
+            document.getElementById('hmModal').style.display = 'flex';
+        }
+
+        function renderModalTable(slotData) {
+            if (slotData.length === 0) {
+                return '<p style="color:#666; text-align:center; padding:20px;">No submissions.</p>';
+            }
+
+            let html = '<table class="hm-table"><thead><tr><th>Date</th><th>Time</th><th>Subject</th><th>Sender</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+            slotData.forEach(item => {
+                const dateStr = item.submission_time.split(' ')[0];
+                const timeStr = item.submission_time.split(' ')[1].substring(0, 5); // HH:MM
+                html += `
+            <tr>
+                <td>${dateStr}</td>
+                <td>${timeStr}</td>
+                <td style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.subject}">${item.subject || 'No Subject'}</td>
+                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.sender}">${item.sender || 'Unknown'}</td>
+                <td>
+                    <span style="padding:2px 6px; border-radius:4px; font-size:0.8rem; background:${item.status === 'MALICIOUS_DETECTED' ? '#f8d7da' : '#d1e7dd'}; color:${item.status === 'MALICIOUS_DETECTED' ? '#842029' : '#0f5132'}">
+                        ${getStatusDisplay(item.status)}
+                    </span>
+                </td>
+                <td><a href="/detail/${item.id}" target="_blank" style="color:#0d6efd;text-decoration:none;font-weight:bold;">View</a></td>
+            </tr>
+        `;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function closeModal() {
+            document.getElementById('hmModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('hmModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // ===== Chart Drawing Functions =====
+
+        function drawStatusChart(data) {
+            // Map statuses to colors from table_view.jinja
+            const colorMap = {
+                'MALICIOUS_DETECTED': '#ef4444', // bg-red
+                'CLEAN_NO_IOCS': '#22c55e',      // bg-green
+                'CLEAN_ANALYZED': '#84cc16',     // bg-lime
+                'PENDING': '#eab308',            // bg-yellow
+                'ANALYZING_VT': '#eab308'        // bg-yellow
+            };
+
+            const keys = Object.keys(data);
+            const labels = keys.map(k => getStatusDisplay(k));
+            const colors = keys.map(status => colorMap[status] || '#eab308'); // Default to yellow-500
+
+            return new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: colors
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } }, cutout: '60%' }
+            });
+        }
+
+        function drawTimeSeriesChart(data) {
+            // Update title
+            const titleEl = document.getElementById('timeSeriesTitle');
+            if (titleEl) {
+                titleEl.textContent = `Submissions Over Time`;
+            }
+
+            return new Chart(document.getElementById('timeSeriesChart'), {
+                type: 'line',
+                data: {
+                    labels: data.map(d => {
+                        // Convert YYYY-MM-DD to MM/DD
+                        const parts = d.date.split('-');
+                        return parts.length === 3 ? `${parts[1]}/${parts[2]}` : d.date;
+                    }),
+                    datasets: [{
+                        label: 'Submissions',
+                        data: data.map(d => d.count),
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Date' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                    }
+                }
+            });
+        }
+
+        function drawIocTypeChart(data) {
+            return new Chart(document.getElementById('iocTypeChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Total Flags',
+                        data: Object.values(data),
+                        backgroundColor: ['#dc3545', '#ffc107', '#6f42c1']
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Flag Type' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'Flags Count' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function drawSenderChart(data) {
+            return new Chart(document.getElementById('senderChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Total Flags from Sender',
+                        data: Object.values(data),
+                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    scales: {
+                        x: { beginAtZero: true, title: { display: true, text: 'Sender Count' } },
+                        y: { title: { display: true, text: 'Emails' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function drawAttachmentChart(data) {
+            return new Chart(document.getElementById('attachmentChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: ['#6f42c1', '#0d6efd', '#20c997', '#ffc107', '#6c757d']
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'bottom' } },
+                    cutout: '60%'
+                }
+            });
+        }
+
+        function drawDomainChart(data) {
+            return new Chart(document.getElementById('domainChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Emails per Domain',
+                        data: Object.values(data),
+                        backgroundColor: '#20c997',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Domains' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function drawThreatSplitChart(malicious, total) {
+            const clean = Math.max(total - malicious, 0);
+            return new Chart(document.getElementById('threatSplitChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Malicious', 'Clean'],
+                    datasets: [{
+                        data: [malicious, clean],
+                        backgroundColor: ['#ef4444', '#22c55e']
+                    }]
+                },
+                options: {
+                    plugins: { legend: { position: 'bottom' } },
+                    cutout: '55%'
+                }
+            });
+        }
+
+        function drawWeekdayChart(map) {
+            const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const values = labels.map(l => map[l] || 0);
+            return new Chart(document.getElementById('weekdayChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: ['#0d6efd', '#6ea8fe', '#20c997', '#ffc107', '#6f42c1', '#fd7e14', '#6c757d']
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } }, cutout: '60%' }
+            });
+        }
+
+        function drawHourChart(map) {
+            const labels = Array.from({ length: 24 }, (_, i) => i);
+            return new Chart(document.getElementById('hourChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Submissions',
+                        data: map,
+                        backgroundColor: 'rgba(13,110,253,0.6)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Hours' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'Count' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function fetchVtUsage() {
+            fetch('/api/vt_usage')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('vtUsageTable').getElementsByTagName('tbody')[0];
+                    const dateSpan = document.getElementById('vtUsageDate');
+                    tableBody.innerHTML = '';
+
+                    dateSpan.textContent = `(${data.date})`;
+
+                    const usage = data.usage || {};
+                    const endpoints = Object.entries(usage).sort(([, a], [, b]) => b - a);
+
+                    if (endpoints.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:#999;">No API calls recorded today.</td></tr>';
+                        return;
+                    }
+
+                    for (const [endpoint, count] of endpoints) {
+                        const row = tableBody.insertRow();
+                        const cellEndpoint = row.insertCell(0);
+                        const cellCount = row.insertCell(1);
+
+                        cellEndpoint.innerHTML = `<code>${endpoint}</code>`;
+                        cellCount.textContent = count;
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('vtUsageTable').getElementsByTagName('tbody')[0].innerHTML = '<tr><td colspan="2" style="text-align:center; color:#dc3545;">Error loading usage data.</td></tr>';
+                });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='network_check.js') }}"></script>
+    <script src="{{ url_for('static', filename='sidebar_loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='global_notifications.js') }}"></script>
+</body>
+
+</html>

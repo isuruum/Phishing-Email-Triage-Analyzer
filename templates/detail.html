@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Detail - ID {{ data.id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/tailwind.css') }}">
+
+    <style>
+        /* ===1. GLOBAL & TYPOGRAPHY ===== */
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            color: #1f2937;
+        }
+
+        /* Sidebar padding for desktop only */
+        @media (min-width: 768px) {
+            body {
+                padding-left: 100px !important;
+                transition: padding-left 0.3s ease;
+            }
+        }
+
+        .main-container {
+            max-width: 95%;
+            margin: 0 auto;
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #9ca3af;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+
+        .prop-label {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .prop-value {
+            font-weight: 500;
+            color: #1f2937;
+            word-break: break-all;
+        }
+
+        /* ====2. CARDS & PANELS==== */
+        .vt-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .vt-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        .header-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (min-width: 768px) {
+            .header-card {
+                flex-direction: row;
+            }
+        }
+
+        /* ====3. BUTTONS==== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            font-weight: 700;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-close {
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.95rem;
+            background: #e7f0ff;
+            color: #0d6efd;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .btn-close:hover {
+            background: #d6e4ff;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #b02a37;
+        }
+
+        /* ====4. TABLES & LISTS===== */
+        .vt-table-container {
+            overflow-x: auto;
+            max-height: 30rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .vt-table {
+            width: 100%;
+            text-align: left;
+            font-size: 0.875rem;
+        }
+
+        .vt-table th {
+            background-color: #F0F2FF;
+            color: #0d6efd;
+            font-weight: 600;
+            padding: 0.875rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        .vt-table td {
+            padding: 0.75rem 1.5rem;
+            vertical-align: top;
+        }
+
+        .vt-table tr {
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s;
+        }
+
+        .vt-table tr:hover {
+            background-color: #f9fafb;
+        }
+
+        /* ====5. TOASTS==== */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 90%;
+            max-width: 800px;
+            pointer-events: none;
+        }
+
+        .message {
+            width: 100%;
+            padding: 16px 20px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-left: 6px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-size: 0.95rem;
+            color: #333;
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.3s ease-out;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .message.success {
+            border-left-color: #28a745;
+        }
+
+        .message.success::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .message.error {
+            border-left-color: #dc3545;
+        }
+
+        .message.error::before {
+            content: "⚠";
+            color: #dc3545;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .message.fade-out {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        /* Utility for code blocks */
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 1.00em;
+            color: #d63384;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <!-- Flash Messages -->
+    <div id="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, msg in messages %}
+        <div class="message {{ category }}">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="main-container space-y-6">
+        <!-- Pre-calculate scores for global access -->
+        {% set malicious_count = (data.vt_score.url_flags|int) + (data.vt_score.file_flags|int) +
+        (data.vt_score.ip_flags|int) if data.vt_score else 0
+        %}
+        {% set total_items = (data.malicious_urls|length) + (data.attachment_hashes|length) %}
+        {% if total_items == 0 %}{% set total_items = 1 %}{% endif %}
+
+        <!-- Header Card -->
+        <!-- Hidden input to store ID for JS -->
+        <input type="hidden" id="analysis-id" value="{{ data.id }}">
+
+        <div class="header-card">
+            <div class="flex items-center gap-3">
+                <img width="40" height="40" src="https://img.icons8.com/fluency/40/mail.png" alt="icon" />
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800 text-gradient">Email Analysis Report</h1>
+                    <p class="text-sm text-gray-500 font-mono">ID: {{ data.id }}</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-4 md:mt-0">
+                <a href="{{ url_for('table_view') }}" class="btn-close">
+                    ← Back to Table
+                </a>
+                <form method="POST" action="{{ url_for('delete_record', email_id=data.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-danger"
+                        onclick="return confirm('⚠️ Are you sure you want to permanently delete analysis ID {{ data.id }}?');">
+                        🗑️ Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Summary Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+
+            <!-- Score / Status Card -->
+            <div class="vt-card flex flex-col items-center justify-center relative overflow-hidden !p-4">
+                <h2 class="section-label mb-3">Threat Score</h2>
+
+                <div class="flex flex-col items-center justify-center py-4">
+                    <span id="score-value"
+                        class="text-6xl font-bold {% if malicious_count > 0 %}text-red-600{% else %}text-teal-500{% endif %}">
+                        {{ malicious_count }}
+                    </span>
+                    <span class="text-sm text-gray-400 font-medium mt-2">Total Flags</span>
+                </div>
+
+                <div class="mt-2 text-center">
+                    <span id="status-badge" data-status="{{ data.status }}" class="px-3 py-1 rounded-full text-xs font-bold text-white 
+                                {% if data.status == 'MALICIOUS_DETECTED' %}bg-red-500 text-white
+                                {% elif data.status == 'CLEAN_NO_IOCS' %}bg-green-500 text-white
+                                {% elif data.status == 'CLEAN_ANALYZED' %}bg-gradient-to-r from-yellow-400 to-green-500 text-white
+                                {% else %}bg-yellow-500 text-gray-800{% endif %}">
+                        {{ data.status | replace('_', ' ') }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Details Card -->
+            <div class="vt-card !p-4">
+                <h2 class="section-label mb-2 border-b pb-1">Email Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="md:col-span-2">
+                        <p class="prop-label">Subject</p>
+                        <p class="prop-value font-semibold text-lg">{{ data.subject }}</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">Sender</p>
+                        <p class="prop-value bg-gray-50 p-2 rounded border border-gray-100">{{ data.sender }}</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">To</p>
+                        <p id="detail-receiver"
+                            class="prop-value bg-gray-50 p-2 rounded border border-gray-100 cursor-help"
+                            title="{{ data.receiver }}">
+                            {% if data.receiver %}
+                            {% set recs = data.receiver.split(',') %}
+                            {{ recs[0] }}{% if recs|length > 1 %} <span class="text-gray-400">... (+{{ recs|length - 1
+                                }} more)</span>{% endif %}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="prop-label">Submission Date & Time</p>
+                        <p class="prop-value">{{ data.submission_time[:10] }} <span class="text-gray-400">|</span> {{
+                            data.submission_time | format_time }}</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">Uploaded Filename</p>
+                        <p class="prop-value text-gray-800">{{ data.uploaded_filename }}</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">VT Detection Stats</p>
+                        <p class="prop-value" id="vt-stats">
+                            URL Flags: <span class="font-bold text-red-500">{{ data.vt_score.url_flags }}</span> |
+                            File Flags: <span class="font-bold text-red-500">{{ data.vt_score.file_flags }}</span> |
+                            IP Flags: <span class="font-bold text-red-500">{{ data.vt_score.ip_flags }}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabbed Content Section -->
+        <div class="vt-card p-0 overflow-hidden">
+            <!-- Tab Header -->
+            <div class="bg-gray-50 px-6 border-b border-gray-200 flex space-x-6 overflow-x-auto">
+                <button onclick="switchTab('iocs')" id="tab-btn-iocs"
+                    class="tab-btn py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600">
+                    🛡️ IOCs & Analysis
+                </button>
+                <button onclick="switchTab('headers')" id="tab-btn-headers"
+                    class="tab-btn py-3 text-sm font-bold text-gray-500 hover:text-gray-700">
+                    ⚙️ Headers
+                </button>
+                <button onclick="switchTab('preview')" id="tab-btn-preview"
+                    class="tab-btn py-3 text-sm font-bold text-gray-500 hover:text-gray-700">
+                    👁️ Email Preview
+                </button>
+            </div>
+
+            <!-- Tab Content: Preview -->
+            <div id="tab-content-preview" class="tab-content hidden">
+                {% if data.body_html %}
+                <iframe src="{{ url_for('render_email', email_id=data.id) }}" sandbox="" loading="lazy"
+                    title="Email Content Preview" class="w-full h-[600px] border-none block">
+                </iframe>
+                {% else %}
+                <div class="p-10 text-center text-gray-500">
+                    <p>No HTML body content was extracted for this email.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Tab Content: IOCs -->
+            <div id="tab-content-iocs" class="tab-content p-6 space-y-8">
+
+                <!-- URLs -->
+                <div>
+                    <h3 class="section-label">Extracted URLs</h3>
+                    <!-- Container ID for JS to toggle visibility -->
+                    <div id="url-section" class="{% if not data.malicious_urls %}hidden{% endif %}">
+                        <div class="vt-table-container">
+                            <table class="vt-table">
+                                <thead>
+                                    <tr>
+                                        <th>URL</th>
+                                        <th>VirusTotal</th>
+                                        <th>Details</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="url-tbody">
+                                    {% for url_ioc in data.malicious_urls %}
+                                    {% set is_malicious = url_ioc.vt_result.split()[0] != '0' %}
+                                    <tr class="{% if is_malicious %}bg-red-50{% endif %}">
+                                        <td class="max-w-md truncate" title="{{ url_ioc.url }}">{{ url_ioc.url }}</td>
+                                        <td>
+                                            {% if is_malicious %}
+                                            <span class="text-red-600 font-bold">{{ url_ioc.vt_result }}</span>
+                                            {% else %}
+                                            <span class="text-green-600 font-medium">{{ url_ioc.vt_result }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-xs text-gray-500">
+                                            {% if url_ioc.vt_info %}
+                                            First Seen: {{ url_ioc.vt_info.first_seen }}<br>
+                                            Reputation: {{ url_ioc.vt_info.reputation }}<br>
+                                            Category: {{ url_ioc.vt_info.category }}
+                                            {% else %}-{% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('full_vt_report', resource_type='url', resource_id=url_ioc.url | urlencode) }}"
+                                                target="_blank"
+                                                class="text-blue-600 hover:underline text-xs font-bold">View
+                                                Report ↗</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p id="no-url-msg"
+                        class="text-sm text-gray-500 italic {% if data.malicious_urls %}hidden{% endif %}">No URLs
+                        extracted.</p>
+                </div>
+
+                <!-- Attachments -->
+                <div>
+                    <h3 class="section-label">Attachments</h3>
+
+                    <div id="file-section" class="{% if not data.attachment_hashes %}hidden{% endif %}">
+                        <div class="vt-table-container">
+                            <table class="vt-table">
+                                <thead>
+                                    <tr>
+                                        <th>Filename</th>
+                                        <th>SHA256</th>
+                                        <th>VirusTotal</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="file-tbody">
+                                    {% for hash_ioc in data.attachment_hashes %}
+                                    {% set is_malicious = hash_ioc.vt_result.split()[0] != '0' %}
+                                    <tr class="{% if is_malicious %}bg-red-50{% endif %}">
+                                        <td class="font-medium">{{ hash_ioc.filename }}</td>
+                                        <td><code class="font-medium text-gray-800">{{ hash_ioc.hash }}</code></td>
+                                        <td>
+                                            {% if is_malicious %}
+                                            <span class="text-red-600 font-bold">{{ hash_ioc.vt_result }}</span>
+                                            {% else %}
+                                            <span class="text-green-600 font-medium">{{ hash_ioc.vt_result }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('full_vt_report', resource_type='file', resource_id=hash_ioc.hash) }}"
+                                                target="_blank"
+                                                class="text-blue-600 hover:underline text-xs font-bold">View
+                                                Report ↗</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p id="no-file-msg"
+                        class="text-sm text-gray-500 italic {% if data.attachment_hashes %}hidden{% endif %}">No
+                        attachments found.</p>
+                </div>
+
+                <!-- IPs -->
+                <div>
+                    <h3 class="section-label">Forensic IPs</h3>
+                    <div id="ip-container" class="flex flex-wrap gap-2">
+                        {% for ip in data.received_ips %}
+                        {% set is_malicious = ip.vt_result and ip.vt_result.split()[0] != '0' %}
+                        <div
+                            class="flex items-center bg-white border {% if is_malicious %}border-red-300 bg-red-50{% else %}border-gray-200{% endif %} rounded px-3 py-2 shadow-sm">
+                            <code class="mr-2">{{ ip.value }}</code>
+                            {% if ip.vt_result %}
+                            <span
+                                class="text-xs font-bold mr-2 {% if is_malicious %}text-red-600{% else %}text-green-600{% endif %}">
+                                {{ ip.vt_result }}
+                            </span>
+                            {% endif %}
+                            <a href="{{ url_for('full_vt_report', resource_type='ip_address', resource_id=ip.value) }}"
+                                target="_blank" class="text-blue-600 hover:text-blue-800 text-xs">↗</a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p id="no-ip-msg" class="text-sm text-gray-500 italic {% if data.received_ips %}hidden{% endif %}">
+                        No routing IPs extracted.</p>
+                </div>
+            </div>
+
+            <!-- Tab Content: Headers -->
+            <div id="tab-content-headers" class="tab-content hidden p-6">
+                {% if data.headers %}
+                <div class="vt-table-container">
+                    <table class="vt-table">
+                        <thead>
+                            <tr>
+                                <th class="w-1/4">Header</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, values in data.headers.items() %}
+                            <tr>
+                                <td class="font-mono font-bold text-gray-600">{{ key }}</td>
+                                <td class="font-mono text-gray-800 whitespace-pre-wrap">{% for val in values %}{{ val
+                                    }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-500">No headers available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Tab Switching Logic ---
+        function switchTab(tabName) {
+            // Reset all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = "tab-btn py-3 text-sm font-bold text-gray-500 hover:text-gray-700 cursor-pointer transition-colors";
+            });
+            // Reset all content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // Activate selected
+            const activeBtn = document.getElementById('tab-btn-' + tabName);
+            activeBtn.className = "tab-btn py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 cursor-pointer transition-colors";
+            document.getElementById('tab-content-' + tabName).classList.remove('hidden');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Toast Logic ---
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+                const removeMessage = () => {
+                    msg.classList.add('fade-out');
+                    msg.addEventListener('transitionend', () => {
+                        if (msg.parentNode) msg.remove();
+                    });
+                };
+                setTimeout(removeMessage, 5000);
+                msg.addEventListener('click', removeMessage);
+            });
+        });
+    </script>
+
+    <!-- Existing Scripts -->
+    <script src="{{ url_for('static', filename='network_check.js') }}"></script>
+    <script src="{{ url_for('static', filename='sidebar_loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='global_notifications.js') }}"></script>
+    <script src="{{ url_for('static', filename='detail_refresh.js') }}"></script>
+</body>
+
+</html>

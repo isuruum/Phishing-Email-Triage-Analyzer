@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>VirusTotal Intelligence Report</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/tailwind.css') }}">
+
+
+    <style>
+        /* ====1. GLOBAL & TYPOGRAPHY==== */
+        body {
+            background-color: #f3f4f6;
+            /* bg-gray-100 */
+            font-family: 'Inter', sans-serif;
+            color: #1f2937;
+        }
+
+        .main-container {
+            max-width: 95%;
+            /* Increased width */
+            margin: 0 auto;
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Section Headers */
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #9ca3af;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+
+        .prop-label {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .prop-value {
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        /* =====2. CARDS & PANELS===== */
+        .vt-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .vt-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: #507BFC;
+        }
+
+        /* Header Card specifics */
+        .header-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (min-width: 768px) {
+            .header-card {
+                flex-direction: row;
+            }
+        }
+
+        /* ====3. BUTTONS & INTERACTIVE===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            font-weight: 700;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background-color: #00d1b2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #0d9488;
+        }
+
+        .btn-secondary {
+            background-color: #a855f7;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #9333ea;
+        }
+
+        .btn-dark {
+            background-color: #4b5563;
+            color: white;
+        }
+
+        .btn-dark:hover {
+            background-color: #374151;
+        }
+
+        .btn-close {
+            display: inline-block;
+            font-size: 0.95rem;
+            background: #e7f0ff;
+            color: #0d6efd;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .btn-close:hover {
+            background: #d6e4ff;
+            transform: translateY(-1px);
+        }
+
+        /* =====4. DATA TABLE STYLES===== */
+        .vt-table-container {
+            overflow-x: auto;
+            max-height: 24rem;
+            /* max-h-96 */
+            border-top: 1px solid #e5e7eb;
+        }
+
+        /* Scrollbar styling for table */
+        .vt-table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .vt-table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .vt-table-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .vt-table-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .vt-table {
+            width: 100%;
+            text-align: left;
+            font-size: 0.875rem;
+        }
+
+        .vt-table th {
+            background-color: #F0F2FF;
+            color: #0d6efd;
+            font-weight: 600;
+            padding: 0.875rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        .vt-table td {
+            padding: 0.75rem 1.5rem;
+        }
+
+        .vt-table tr {
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s;
+        }
+
+        .vt-table tr:hover {
+            background-color: #f9fafb;
+        }
+
+        /* =====5. VISUALIZATIONS (Gauge, Tags, JSON)===== */
+        /* Gauge Animation */
+        .gauge-circle {
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .gauge-value {
+            transition: stroke-dashoffset 1s ease-out;
+        }
+
+        /* Tags */
+        .tag-pill {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid #e5e7eb;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* JSON Code Block */
+        .json-code {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.85rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: #4ade80;
+        }
+
+        /* =====6. MODAL & ALERTS===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(17, 24, 39, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.flex {
+            display: flex;
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2rem;
+            max-width: 24rem;
+            width: 100%;
+            text-align: center;
+        }
+
+        .llm-result-box {
+            display: none;
+            background: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #0d6efd;
+        }
+
+        .llm-result-box.active {
+            display: block;
+        }
+
+        /* TOGGLE BUTTON STYLES */
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .transition-transform {
+            transition: transform 0.3s ease;
+        }
+
+        /* Rotates the icon 180 degrees */
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+
+        /* Smooth reveal for content */
+        .content-transition {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            overflow: hidden;
+        }
+
+        /* Hidden state styles */
+        .content-hidden {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <script type="text/javascript">
+        const __app_id = 'json-viewer-app';
+        const __firebase_config = '{}';
+        const __initial_auth_token = '';
+    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        const firebaseConfig = JSON.parse('{}');
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            signInAnonymously(auth);
+        } catch (e) { console.error("Firebase Init Error", e); }
+    </script>
+    <script>
+        const SERVER_DATA = {{ report_data | tojson | default ('null') | safe }};
+        const RESOURCE_TYPE = {{ resource_type | tojson | default ('""') | safe }};
+        let RESOURCE_ID = {{ resource_id | tojson | default ('""') | safe }};
+        // Decode ID if it was URL-encoded to pass through routing
+        if (RESOURCE_TYPE === 'url' && RESOURCE_ID.includes('%')) {
+            try {
+                RESOURCE_ID = decodeURIComponent(RESOURCE_ID);
+                // Clean up any trailing newlines or whitespace (common in email extractions)
+                RESOURCE_ID = RESOURCE_ID.trim();
+            } catch (e) { console.warn("ID Decode Error", e); }
+        }
+    </script>
+    <script src="{{ url_for('static', filename='spinner.js') }}"></script>
+
+    <div class="main-container space-y-6">
+
+        <div class="header-card">
+            <div class="flex items-center gap-3 min-w-0">
+                <img width="40" height="40" class="flex-shrink-0"
+                    src="https://img.icons8.com/fluency/40/pie-chart-report-script.png" alt="icon" />
+                <div class="min-w-0">
+                    <h1 class="text-xl font-bold text-gray-800 text-gradient">VirusTotal Analysis Report</h1>
+                    <p class="text-sm text-gray-500 font-mono break-all" id="header-id">Loading ID...</p>
+                </div>
+            </div>
+            <a href="javascript:window.close()" class="btn-close mt-4 md:mt-0 flex-shrink-0">
+                <span>✕</span> Close Tab
+            </a>
+        </div>
+
+        <!-- Cache Notification Bar -->
+        <div id="cache-status-bar"
+            class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3 flex justify-between items-center">
+            <div class="flex items-center gap-2 text-sm text-blue-800">
+                <span>ℹ️</span>
+                <span id="cache-msg">Viewing cached report</span>
+            </div>
+            <button id="reanalyze-btn"
+                class="text-xs bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 font-semibold py-1 px-3 rounded transition cursor-pointer">
+                🔄 Re-Analyze (Fetch Fresh)
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+
+            <div class="vt-card flex flex-col items-center justify-center relative overflow-hidden !p-4">
+                <h2 class="section-label mb-3">Detection Score</h2>
+
+                <div class="relative w-32 h-32">
+                    <svg class="w-full h-full gauge-circle" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#f3f4f6" stroke-width="8"></circle>
+                        <circle id="gauge-path" cx="50" cy="50" r="45" fill="none" stroke="#ff4b4b" stroke-width="8"
+                            stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round" class="gauge-value">
+                        </circle>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="score-display" class="text-5xl font-bold text-gray-800">0</span>
+                        <span id="total-display" class="text-xs text-gray-400 font-medium">/ 0</span>
+                    </div>
+                </div>
+
+                <p id="verdict-label" class="mt-2 text-sm font-bold text-gray-700 lg:whitespace-nowrap">Analyzing...</p>
+            </div>
+
+            <div class="vt-card !p-4">
+                <h2 class="section-label mb-2 border-b pb-1">Details</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <p class="prop-label">Type</p>
+                        <p id="prop-type" class="prop-value truncate">N/A</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">File Size</p>
+                        <p id="prop-size" class="prop-value truncate">N/A</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">First Seen</p>
+                        <p id="prop-seen" class="prop-value">N/A</p>
+                    </div>
+                    <div>
+                        <p class="prop-label">Last Analysis</p>
+                        <p id="prop-date" class="prop-value">N/A</p>
+                    </div>
+                    <div class="md:col-span-2">
+                        <p class="prop-label">Meaningful Name / URL</p>
+                        <p id="prop-name" class="prop-value truncate bg-gray-50 p-2 rounded border border-gray-100">N/A
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <p class="prop-label mb-2">Tags</p>
+                    <div id="tags-container" class="flex flex-wrap gap-2">
+                        <span class="text-xs text-gray-400 italic">No tags available</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="vt-card p-0 overflow-hidden">
+            <!-- Tab Header -->
+            <div class="bg-gray-50 px-6 border-b border-gray-200 flex justify-between items-center">
+                <div class="flex space-x-6">
+                    <button id="tab-btn-detection" onclick="switchTab('detection')"
+                        class="px-3 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition-colors">
+                        Detection
+                    </button>
+                    <button id="tab-btn-details" onclick="switchTab('details')"
+                        class="px-3 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 focus:outline-none transition-colors">
+                        Details
+                    </button>
+                    <button id="tab-btn-behavior" onclick="switchTab('behavior')"
+                        class="hidden px-3 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 focus:outline-none transition-colors">
+                        Behavior Report
+                    </button>
+                    <button id="tab-btn-relations" onclick="switchTab('relations')"
+                        class="hidden px-3 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 focus:outline-none transition-colors">
+                        Relations
+                    </button>
+                    <button id="tab-btn-hardlinks" onclick="switchTab('hardlinks')"
+                        class="px-3 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 focus:outline-none transition-colors">
+                        Hard Link
+                    </button>
+                </div>
+                <span class="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full my-2">Detection Score
+                    <span id="detection-count-badge"
+                        class="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-full my-2">0</span>
+                </span>
+            </div>
+
+            <!-- Tab Content: Detection -->
+            <div id="tab-content-detection" class="vt-table-container">
+                <table class="vt-table">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Result</th>
+                            <th>Version</th>
+                            <th>Last Update</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detection-table-body" class="bg-white">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tab Content: Details -->
+            <div id="tab-content-details" class="hidden p-6 space-y-8">
+
+                <!-- Basic Properties (Files) -->
+                <div id="section-basic-props" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="Basic attributes that allow you to further identify the file being studied.">
+                        Basic Properties <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">MD5</span><span
+                                id="detail-md5" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">SHA-1</span><span
+                                id="detail-sha1" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">SHA-256</span><span
+                                id="detail-sha256" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">Vhash</span><span
+                                id="detail-vhash" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">SSDEEP</span><span
+                                id="detail-ssdeep" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">TLSH</span><span
+                                id="detail-tlsh" class="font-mono text-gray-800 break-all select-all">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">File Type</span><span
+                                id="detail-type" class="text-gray-800">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">Magic</span><span
+                                id="detail-magic" class="text-gray-800">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">TrID</span>
+                            <div id="detail-trid" class="text-gray-800 text-xs">-</div>
+                        </div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">Magika</span><span
+                                id="detail-magika" class="text-gray-800">-</span></div>
+                        <div class="grid grid-cols-[120px_1fr] gap-2"><span class="text-gray-500">File Size</span><span
+                                id="detail-size" class="text-gray-800">-</span></div>
+                    </div>
+                </div>
+
+                <!-- History (Files & URLs) -->
+                <div id="section-history" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="Relevant dates related to the file being studied">
+                        History <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">First Submission</p>
+                            <p id="hist-first" class="font-medium">-</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">Last Submission</p>
+                            <p id="hist-last-sub" class="font-medium">-</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">Last Analysis</p>
+                            <p id="hist-last-anal" class="font-medium">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Names (Files) -->
+                <div id="section-names" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="Names with which this file has been submitted or seen in the wild">
+                        Names <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <div id="names-list"
+                        class="bg-gray-50 p-3 rounded border border-gray-200 text-sm font-mono text-gray-700 max-h-40 overflow-y-auto">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Categories (URLs) -->
+                <div id="section-categories" class="hidden">
+                    <h3 class="section-label">Categories</h3>
+                    <div id="categories-list" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- HTTP Response (URLs) -->
+                <div id="section-http" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="Data gathered from standard HyperText Transfer Protocol communication when asking for the URL being studied.">
+                        HTTP Response <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <div class="space-y-4 text-sm">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <p class="text-gray-500 text-xs mb-1">Final URL</p>
+                                <p id="http-final-url"
+                                    class="font-mono bg-gray-50 p-2 rounded border border-gray-200 break-all text-xs">-
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs mb-1">Serving IP Address</p>
+                                <p id="http-serving-ip" class="font-mono font-bold text-blue-600">-</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs mb-1">Status Code</p>
+                                <p id="http-status-code" class="font-mono font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500 text-xs mb-1">Body Length</p>
+                                <p id="http-body-length" class="font-mono">-</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">Body SHA-256</p>
+                            <div class="flex items-center gap-2">
+                                <code id="http-body-sha256"
+                                    class="font-mono text-xs bg-gray-100 p-2 rounded border border-gray-200 break-all">-</code>
+                                <button onclick="copyToClipboard('http-body-sha256', this)"
+                                    class="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded transition font-medium">Copy</button>
+                            </div>
+                        </div>
+
+                        <!-- Headers Mini Table -->
+                        <div>
+                            <h4 class="font-bold text-gray-700 text-xs uppercase mb-2 border-b border-gray-200 pb-1">
+                                Response Headers</h4>
+                            <div class="bg-white border border-gray-200 rounded overflow-hidden">
+                                <table class="w-full text-xs text-left">
+                                    <tbody id="http-headers-body" class="divide-y divide-gray-100">
+                                        <!-- Populated by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HTML Info -->
+                <div id="section-html-info" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="The file being studied is an HTML file. These details are extracted from the file.">
+                        HTML Info <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">Page Title</p>
+                            <p id="html-title" class="font-medium text-gray-800">-</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-xs mb-1">Meta Tags</p>
+                            <div id="html-meta-tags" class="grid grid-cols-1 gap-2">
+                                <!-- JS Populated -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cookies -->
+                <div id="section-cookies" class="hidden">
+                    <h3 class="section-label">Cookies</h3>
+                    <div id="cookies-list" class="space-y-2 text-sm">
+                        <!-- JS Populated -->
+                    </div>
+                </div>
+
+                <!-- Whois (IPs) -->
+                <div id="section-whois" class="hidden">
+                    <h3 class="section-label flex items-center gap-2"
+                        title="Domain registration information as provided by its whois lookup.">
+                        Whois Lookup <span class="cursor-help text-gray-400">ⓘ</span>
+                    </h3>
+                    <pre id="whois-content"
+                        class="bg-gray-900 text-green-400 p-4 rounded text-xs font-mono overflow-x-auto whitespace-pre-wrap max-h-96">
+                        <!-- Populated by JS -->
+                    </pre>
+                </div>
+
+            </div>
+
+            <!-- Tab Content: Behavior -->
+            <div id="tab-content-behavior" class="hidden p-6 space-y-8"></div>
+
+            <!-- Tab Content: Relations (IP Only) -->
+            <div id="tab-content-relations" class="hidden p-6 space-y-10">
+
+                <!-- Passive DNS -->
+                <div id="rel-dns-section" class="hidden">
+                    <h3 class="section-label mb-3 flex items-center gap-2">
+                        Passive DNS Replication
+                        <span class="cursor-help text-gray-400"
+                            title="The following domains resolved to the given IP address">ⓘ</span>
+                        <span id="rel-dns-badge"
+                            class="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-bold">0</span>
+                    </h3>
+                    <div class="vt-table-container max-h-[400px]">
+                        <table class="vt-table">
+                            <thead>
+                                <tr>
+                                    <th>Date Resolved</th>
+                                    <th>Detection</th>
+                                    <th>Resolver</th>
+                                    <th>Domain</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rel-dns-tbody" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Communicating Files -->
+                <div id="rel-comm-section" class="hidden">
+                    <h3 class="section-label mb-3 flex items-center gap-2">
+                        Communicating Files
+                        <span class="cursor-help text-gray-400"
+                            title="Latest file that communicate with this IP address">ⓘ</span>
+                        <span id="rel-comm-badge"
+                            class="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-bold">0</span>
+                    </h3>
+                    <div class="vt-table-container max-h-[400px]">
+                        <table class="vt-table">
+                            <thead>
+                                <tr>
+                                    <th>Scanned</th>
+                                    <th>Detection</th>
+                                    <th>Type</th>
+                                    <th>Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rel-comm-tbody" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Files Referring -->
+                <div id="rel-ref-section" class="hidden">
+                    <h3 class="section-label mb-3 flex items-center gap-2">
+                        Files Referring
+                        <span class="cursor-help text-gray-400"
+                            title="Latest files where the given IP address found in their content">ⓘ</span>
+                        <span id="rel-ref-badge"
+                            class="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-bold">0</span>
+                    </h3>
+                    <div class="vt-table-container max-h-[400px]">
+                        <table class="vt-table">
+                            <thead>
+                                <tr>
+                                    <th>Scanned</th>
+                                    <th>Detection</th>
+                                    <th>Type</th>
+                                    <th>Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rel-ref-tbody" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Historical Whois -->
+                <div id="rel-whois-section" class="hidden">
+                    <h3 class="section-label mb-3 flex items-center gap-2">
+                        Historical Whois Lookups
+                        <span class="cursor-help text-gray-400" title="Historical Whois lookups">ⓘ</span>
+                        <span id="rel-whois-badge"
+                            class="ml-2 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-bold">0</span>
+                    </h3>
+                    <div class="vt-table-container max-h-[400px]">
+                        <table class="vt-table">
+                            <thead>
+                                <tr>
+                                    <th>Last Updated</th>
+                                    <th>Organization</th>
+                                    <th>Email</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rel-whois-tbody" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content: Hard Links -->
+            <div id="tab-content-hardlinks" class="hidden vt-table-container">
+                <table class="vt-table">
+                    <thead>
+                        <tr>
+                            <th>Email Subject</th>
+                            <th>Sender</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hardlinks-table-body" class="bg-white">
+                        <tr>
+                            <td colspan="5" class="text-center text-gray-500 py-4">Waiting for data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 p-4 bg-gray-100 rounded-xl border border-gray-200">
+            <button id="summarize-btn" class="btn btn-primary">
+                <span class="mr-2">✨</span> Summarize & Analyze Risk
+            </button>
+            <button id="explain-tags-btn" class="btn btn-secondary">
+                <span class="mr-2">🏷️</span> Explain Tags
+            </button>
+            <button onclick="document.getElementById('raw-json-panel').classList.toggle('hidden')"
+                class="btn btn-dark ml-auto">
+                <span class="mr-2">⚙️</span> Toggle Raw JSON
+            </button>
+        </div>
+
+        <div id="llm-results" class="llm-result-box">
+            <div onclick="toggleLlmSection()"
+                class="flex justify-between items-center border-b pb-4 mb-4 cursor-pointer select-none group">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <span class="text-3xl mr-3">🤖</span> AI Analysis Report
+                </h2>
+
+                <div class="p-2 rounded-full group-hover:bg-gray-100 transition">
+                    <svg id="llm-toggle-icon" class="w-6 h-6 text-gray-500 transition-transform rotate-180" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <div id="llm-content-wrapper" class="content-transition">
+                <div id="llm-content" class="prose max-w-none text-gray-700"></div>
+            </div>
+        </div>
+
+        <div id="raw-json-panel" class="hidden">
+            <div class="bg-gray-800 rounded-xl shadow-inner border border-gray-700 overflow-hidden">
+                <div class="bg-gray-900 px-4 py-2 border-b border-gray-700 text-xs text-gray-400 font-mono">RAW JSON
+                    RESPONSE</div>
+                <div class="p-4 max-h-[500px] overflow-auto">
+                    <pre class="json-code" id="report-data-json-display"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="modal-title" class="text-xl font-bold mb-4">Processing...</h3>
+            <p id="modal-message" class="text-gray-600 mb-6">Please wait while we analyze the data.</p>
+            <div id="modal-spinner" class="flex justify-center mb-4">
+                <div class="loader" style="color: #0d6efd;"></div>
+            </div>
+            <button id="modal-close"
+                class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hidden transition">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let REPORT_DATA = null;
+
+        // Fallback Mock Data
+        const MOCK_DATA = { data: { id: "mock_id", type: "file", attributes: { last_analysis_stats: { malicious: 5, harmless: 70 }, tags: ["trojan", "peexe"], last_analysis_results: { "VendorA": { category: "malicious", result: "Trojan.Win32" } } } } };
+
+        window.onload = function () {
+            if (SERVER_DATA) {
+                populateUI(SERVER_DATA);
+            } else if (RESOURCE_ID && RESOURCE_TYPE) {
+                showModal("Analyzing...", "Querying VirusTotal API (approx 15s)...");
+                fetch(`/api/fetch_vt_report/${RESOURCE_TYPE}/${encodeURIComponent(RESOURCE_ID)}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`Server Error: ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (data.error) throw new Error(data.error);
+
+                        if (data.data && data.data.type === 'analysis_queued') {
+                            showModal("Analysis Queued", "This URL was not found in VirusTotal. A new scan has been triggered. The page will reload in 10 seconds.", false);
+                            setTimeout(() => location.reload(), 10000);
+                            return;
+                        }
+
+                        hideModal();
+                        populateUI(data);
+                    })
+                    .catch(err => { showModal("Error", err.message, true); });
+            } else {
+                console.warn("Using Mock Data");
+                populateUI(MOCK_DATA);
+            }
+        };
+
+        function populateUI(dataObj) {
+            REPORT_DATA = dataObj;
+            if (!REPORT_DATA || !REPORT_DATA.data) {
+                console.error("No valid report data found.");
+                return;
+            }
+
+            // --- CACHE HANDLING ---
+            const cacheMeta = REPORT_DATA._cache_metadata;
+            const cacheBar = document.getElementById('cache-status-bar');
+
+            if (cacheMeta && cacheMeta.cached) {
+                cacheBar.classList.remove('hidden');
+                document.getElementById('cache-msg').textContent = `Viewing cached data from ${cacheMeta.cached_at}`;
+                document.getElementById('reanalyze-btn').onclick = () => {
+                    showModal("Re-Analyzing...", "Forcing fresh lookup from VirusTotal (approx 15s)...");
+                    fetch(`/api/fetch_vt_report/${RESOURCE_TYPE}/${encodeURIComponent(RESOURCE_ID)}?force=true`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.error) throw new Error(data.error);
+                            hideModal();
+                            populateUI(data);
+                        })
+                        .catch(err => { showModal("Error", err.message, true); });
+                };
+            } else {
+                cacheBar.classList.add('hidden');
+            }
+
+            // --- POPULATE UI ---
+            const data = REPORT_DATA.data;
+            const attrs = data.attributes || {};
+            const stats = attrs.last_analysis_stats || { malicious: 0, harmless: 0, undetected: 0 };
+            const type = data.type || RESOURCE_TYPE; // 'file', 'url', 'ip_address'
+
+            // 1. Header
+            let headerLabel = data.id || 'Unknown ID';
+            if (type === 'ip_address') headerLabel = `IP: ${data.id}`;
+            else if (type === 'file') headerLabel = `Hash: ${data.id}`;
+            else if (type === 'url') headerLabel = `URL: ${attrs.url || 'Unknown'}`;
+
+            document.getElementById('header-id').textContent = headerLabel;
+            document.getElementById('report-data-json-display').textContent = JSON.stringify(REPORT_DATA, null, 2);
+
+            // 2. Properties
+            document.getElementById('prop-type').textContent = attrs.type_description || data.type || 'N/A';
+            document.getElementById('prop-size').textContent = attrs.size ? (attrs.size / 1024).toFixed(2) + ' KB' : 'N/A';
+            document.getElementById('prop-name').textContent = (attrs.names && attrs.names.length > 0) ? attrs.names[0] : (attrs.meaningful_name || attrs.url || 'N/A');
+
+            // --- DATE FORMATTING CHANGE HERE (YYYY-MM-DD) ---
+            const formatDate = (ts) => {
+                if (!ts) return 'N/A';
+                // 'en-CA' outputs YYYY-MM-DD while keeping local timezone
+                return new Date(ts * 1000).toLocaleDateString('en-CA');
+            };
+
+            document.getElementById('prop-seen').textContent = formatDate(attrs.first_submission_date);
+            document.getElementById('prop-date').textContent = formatDate(attrs.last_analysis_date);
+
+            // 3. Tags
+            const tagContainer = document.getElementById('tags-container');
+            tagContainer.innerHTML = ''; // Clear defaults
+            if (attrs.tags && attrs.tags.length > 0) {
+                attrs.tags.forEach(tag => {
+                    const span = document.createElement('span');
+                    // Uses new .tag-pill class from style tag
+                    span.className = "tag-pill";
+                    span.textContent = tag;
+                    tagContainer.appendChild(span);
+                });
+            } else {
+                tagContainer.innerHTML = '<span class="text-xs text-gray-400 italic">No tags available</span>';
+            }
+
+            // 4. Gauge Logic
+            const malicious = stats.malicious || 0;
+            const total = (stats.malicious + stats.undetected + stats.harmless + stats.suspicious) || 0;
+
+            document.getElementById('score-display').textContent = malicious;
+            document.getElementById('total-display').textContent = `/ ${total}`;
+
+            // Gauge Animation
+            const circle = document.getElementById('gauge-path');
+            const circumference = 2 * Math.PI * 45; // r=45 -> 282.7
+            const percentage = total > 0 ? (malicious / total) : 0;
+            const offset = circumference - (percentage * circumference); // 0 malicious = full offset (hidden)
+
+            // Color & Verdict Logic
+            const verdictLabel = document.getElementById('verdict-label');
+
+            if (malicious === 0) {
+                circle.setAttribute('stroke', '#00d1b2'); // Green
+                document.getElementById('score-display').classList.replace('text-gray-800', 'text-teal-500');
+                verdictLabel.textContent = "No security vendors flagged this file as malicious";
+                verdictLabel.className = "mt-2 text-xs font-medium text-teal-600 lg:whitespace-nowrap";
+            } else if (malicious < 3) {
+                circle.setAttribute('stroke', '#ffdd57'); // Yellow
+                document.getElementById('score-display').classList.replace('text-gray-800', 'text-yellow-500');
+                verdictLabel.textContent = "Suspicious / Low Detection";
+                verdictLabel.className = "mt-2 text-sm font-bold text-yellow-600 lg:whitespace-nowrap";
+            } else {
+                circle.setAttribute('stroke', '#ff4b4b'); // Red
+                document.getElementById('score-display').classList.replace('text-gray-800', 'text-red-600');
+                verdictLabel.textContent = "Malicious / High Confidence";
+                verdictLabel.className = "mt-2 text-sm font-bold text-red-600 lg:whitespace-nowrap";
+            }
+
+            // Trigger Animation
+            setTimeout(() => { circle.style.strokeDashoffset = offset; }, 100);
+
+            // 5. Detection Table Population
+            const results = attrs.last_analysis_results || {};
+            const tbody = document.getElementById('detection-table-body');
+            let detectedCount = 0;
+
+            // Convert to array and sort: Malicious first
+            const sortedVendors = Object.entries(results).sort((a, b) => {
+                const priority = { 'malicious': 1, 'suspicious': 2, 'harmless': 3 };
+                const pA = priority[a[1].category] || 4; // 4 = undetected, type-unsupported, failure
+                const pB = priority[b[1].category] || 4;
+                // Sort by priority, then alphabetically by vendor name
+                return (pA - pB) || a[0].localeCompare(b[0]);
+            });
+
+            sortedVendors.forEach(([vendor, res]) => {
+                const tr = document.createElement('tr');
+                // Removed explicit border/hover classes here as they are now in .vt-table tr CSS
+
+                let resultHtml = `<span class="text-gray-400 flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-gray-300"></span> ${res.result || 'Undetected'}</span>`;
+
+                if (res.category === 'malicious') {
+                    detectedCount++;
+                    resultHtml = `<span class="text-red-600 font-bold flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-red-500"></span> ${res.result || 'Malicious'}</span>`;
+                } else if (res.category === 'suspicious') {
+                    resultHtml = `<span class="text-yellow-600 font-medium flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-yellow-500"></span> ${res.result || 'Suspicious'}</span>`;
+                }
+
+                let dateStr = res.engine_update ? String(res.engine_update) : '-';
+                if (dateStr.length === 8 && !isNaN(dateStr)) {
+                    dateStr = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+                }
+
+                tr.innerHTML = `
+                    <td class="font-medium text-gray-900">${vendor}</td>
+                    <td>${resultHtml}</td>
+                    <td class="text-gray-400 text-xs">${res.engine_version || '-'}</td>
+                    <td class="text-gray-400 text-xs">${dateStr}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('detection-count-badge').textContent = detectedCount;
+
+            // 6. Populate Details Tab
+            const formatTime = (ts) => ts ? new Date(ts * 1000).toLocaleString() : '-';
+
+            // --- Basic Properties (File) ---
+            if (type === 'file') {
+                document.getElementById('section-basic-props').classList.remove('hidden');
+                document.getElementById('detail-md5').textContent = attrs.md5 || '-';
+                document.getElementById('detail-sha1').textContent = attrs.sha1 || '-';
+                document.getElementById('detail-sha256').textContent = attrs.sha256 || '-';
+                document.getElementById('detail-vhash').textContent = attrs.vhash || '-';
+                document.getElementById('detail-ssdeep').textContent = attrs.ssdeep || '-';
+                document.getElementById('detail-tlsh').textContent = attrs.tlsh || '-';
+                document.getElementById('detail-type').textContent = attrs.type_description || '-';
+                document.getElementById('detail-magic').textContent = attrs.magic || '-';
+                document.getElementById('detail-magika').textContent = attrs.magika || '-';
+                document.getElementById('detail-size').textContent = attrs.size ? (attrs.size).toLocaleString() + ' bytes' : '-';
+
+                if (attrs.trid && attrs.trid.length) {
+                    document.getElementById('detail-trid').innerHTML = attrs.trid.map(t =>
+                        `<div>${t.file_type} <span class="text-gray-400">(${t.probability}%)</span></div>`
+                    ).join('');
+                }
+            }
+
+            // --- History (File & URL) ---
+            if (type === 'file' || type === 'url') {
+                document.getElementById('section-history').classList.remove('hidden');
+                document.getElementById('hist-first').textContent = formatTime(attrs.first_submission_date);
+                document.getElementById('hist-last-sub').textContent = formatTime(attrs.last_submission_date);
+                document.getElementById('hist-last-anal').textContent = formatTime(attrs.last_analysis_date);
+            }
+
+            // --- Names (File) ---
+            if (type === 'file' && attrs.names && attrs.names.length) {
+                document.getElementById('section-names').classList.remove('hidden');
+                document.getElementById('names-list').innerHTML = attrs.names.map(n => `<div>${n}</div>`).join('');
+            }
+
+            // --- Categories (URL) ---
+            if (type === 'url' && attrs.categories) {
+                document.getElementById('section-categories').classList.remove('hidden');
+                const cats = Object.entries(attrs.categories).map(([vendor, cat]) =>
+                    `<div class="flex flex-col border-b border-gray-100 pb-1">
+                        <span class="font-medium text-gray-700">${vendor}</span>
+                        <span class="text-gray-500 text-xs">${cat}</span>
+                    </div>`
+                ).join('');
+                document.getElementById('categories-list').innerHTML = cats || '<span class="text-gray-400">No categories found</span>';
+            }
+
+            // --- HTTP Response (URL) ---
+            if (type === 'url') {
+                document.getElementById('section-http').classList.remove('hidden');
+                document.getElementById('http-final-url').textContent = attrs.last_final_url || attrs.url || '-';
+
+                // Try to find serving IP in various places
+                const servingIp = attrs.last_serving_ip_address || (attrs.last_http_response_headers ? attrs.last_http_response_headers['serving_ip'] : null) || '-';
+                document.getElementById('http-serving-ip').textContent = servingIp;
+
+                // New Fields
+                document.getElementById('http-status-code').textContent = attrs.last_http_response_code || '-';
+                document.getElementById('http-body-length').textContent = attrs.last_http_response_content_length ? (attrs.last_http_response_content_length + ' bytes') : '-';
+                document.getElementById('http-body-sha256').textContent = attrs.last_http_response_content_sha256 || '-';
+
+                // Headers Table
+                const headersBody = document.getElementById('http-headers-body');
+                headersBody.innerHTML = '';
+                const headers = attrs.last_http_response_headers || {};
+                const headerKeys = Object.keys(headers);
+                const targetHeaders = [
+                    'Transfer-Encoding', 'Set-Cookie', 'Expires', 'Server', 'Connection',
+                    'Cache-Control', 'Date', 'X-Frame-Options', 'Referrer-Policy', 'Content-Type', 'CF-RAY', 'Set-Cookie', 'Strict-Transport-Security', 'Content-Security-Policy', 'location', 'last-modified', 'x-powered-by', 'x-xss-protection', 'x-content-type-options', 'via', 'accept-ranges', 'etag', 'x-frame-options', 'Content-Disposition'
+                ];
+
+                targetHeaders.forEach(target => {
+                    const key = headerKeys.find(k => k.toLowerCase() === target.toLowerCase());
+                    if (key) {
+                        const val = headers[key];
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td class="py-2 px-3 font-medium text-gray-600 w-1/3 bg-gray-50">${target}</td><td class="py-2 px-3 text-gray-800 font-mono break-all">${val}</td>`;
+                        headersBody.appendChild(row);
+                    }
+                });
+                if (headersBody.children.length === 0) {
+                    headersBody.innerHTML = '<tr><td colspan="2" class="p-3 text-gray-400 italic">No relevant headers found</td></tr>';
+                }
+
+                // --- HTML Info ---
+                if (attrs.html_meta) {
+                    document.getElementById('section-html-info').classList.remove('hidden');
+                    document.getElementById('html-title').textContent = attrs.html_meta.title || (attrs.title) || '-';
+
+                    const metaContainer = document.getElementById('html-meta-tags');
+                    metaContainer.innerHTML = '';
+                    Object.entries(attrs.html_meta).forEach(([k, v]) => {
+                        if (k === 'title') return;
+                        const valStr = Array.isArray(v) ? v.join(', ') : v;
+                        const div = document.createElement('div');
+                        div.className = "flex flex-col md:flex-row md:items-start gap-1 md:gap-4 border-b border-gray-100 pb-1 last:border-0";
+                        div.innerHTML = `<span class="text-xs font-bold text-gray-500 min-w-[120px]">${k}</span><span class="text-xs text-gray-800 font-mono break-all">${valStr}</span>`;
+                        metaContainer.appendChild(div);
+                    });
+                }
+
+                // --- Cookies ---
+                if (attrs.last_http_response_cookies && attrs.last_http_response_cookies.length > 0) {
+                    document.getElementById('section-cookies').classList.remove('hidden');
+                    const cookieContainer = document.getElementById('cookies-list');
+                    cookieContainer.innerHTML = '';
+                    attrs.last_http_response_cookies.forEach(c => {
+                        const div = document.createElement('div');
+                        div.className = "bg-gray-50 p-2 rounded border border-gray-200";
+                        div.innerHTML = `<div class="font-bold text-blue-700">${c.name}</div><div class="text-xs text-gray-600 break-all">${c.value}</div><div class="mt-1 text-[10px] text-gray-400 flex gap-2"><span>Domain: ${c.domain || '-'}</span><span>Path: ${c.path || '-'}</span></div>`;
+                        cookieContainer.appendChild(div);
+                    });
+                }
+            }
+
+            // --- Whois (IP) ---
+            if (type === 'ip_address') {
+                document.getElementById('section-whois').classList.remove('hidden');
+                document.getElementById('whois-content').textContent = attrs.whois || 'No Whois data available.';
+                // Also show history for IPs if available
+                if (attrs.last_analysis_date) {
+                    document.getElementById('section-history').classList.remove('hidden');
+                    document.getElementById('hist-last-anal').textContent = formatTime(attrs.last_analysis_date);
+                    // Hide submission dates for IPs as they aren't "submitted" like files
+                    document.getElementById('hist-first').parentElement.classList.add('hidden');
+                    document.getElementById('hist-last-sub').parentElement.classList.add('hidden');
+                }
+                // Enable Relations Tab for IPs
+                document.getElementById('tab-btn-relations').classList.remove('hidden');
+            }
+
+            // --- Behavior (File) ---
+            if (type === 'file' && REPORT_DATA.behavior && REPORT_DATA.behavior.length > 0) {
+                document.getElementById('tab-btn-behavior').classList.remove('hidden');
+                renderBehavior(REPORT_DATA.behavior);
+            }
+
+            // Attach Listeners
+            document.getElementById('summarize-btn').addEventListener('click', summarizeReport);
+            document.getElementById('explain-tags-btn').addEventListener('click', explainTags);
+        };
+
+        // --- 2. GEMINI PROXY CALL ---
+        async function callGemini(userQuery, tools = null, systemPrompt = null) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const apiUrl = '/api/gemini-proxy'; // Calls Python backend
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ query: userQuery, tools: tools, systemPrompt: systemPrompt })
+            });
+            const result = await response.json();
+            if (result.error || !result.candidates) throw new Error("AI Service Error: " + (result.error?.message || "Unknown error"));
+            const candidate = result.candidates[0];
+            const text = candidate.content.parts[0].text;
+            let sources = [];
+            if (candidate.groundingMetadata?.groundingAttributions) {
+                sources = candidate.groundingMetadata.groundingAttributions.map(a => ({ uri: a.web?.uri, title: a.web?.title })).filter(s => s.uri);
+            }
+            return { text, sources };
+        }
+
+        // --- 3. FEATURES ---
+        async function summarizeReport() {
+            if (!REPORT_DATA || !REPORT_DATA.data) return showModal("Error", "No data available", true);
+
+            const btn = document.getElementById('summarize-btn');
+            const originalContent = toggleButtonLoading(btn, true);
+
+            try {
+                const attrs = REPORT_DATA.data.attributes;
+                const analysisData = {
+                    file_info: {
+                        names: attrs.names ? attrs.names.slice(0, 5) : [],
+                        size: attrs.size,
+                        type: attrs.type_description,
+                        first_seen: attrs.first_submission_date ? new Date(attrs.first_submission_date * 1000).toISOString() : 'Unknown',
+                        reputation: attrs.reputation
+                    },
+                    stats: attrs.last_analysis_stats,
+                    tags: attrs.tags,
+                    detections: Object.entries(attrs.last_analysis_results || {}).filter(([, v]) => v.category === 'malicious').slice(0, 10).map(([k, v]) => `${k}: ${v.result}`)
+                };
+                const query = `Perform a comprehensive security assessment on this file based on the VirusTotal report:\n${JSON.stringify(analysisData, null, 2)}`;
+                const sysPrompt = `You are a Senior Malware Analyst. Analyze the provided JSON data. Output your response in valid Markdown with the following structure: ### 1. Executive Summary... ### 2. Risk Assessment... ### 3. Technical Analysis... ### 4. Recommendation...`;
+                const res = await callGemini(query, null, sysPrompt);
+                displayResults(res.text, []);
+            } catch (e) { showModal("Analysis Failed", e.message, true); } finally { toggleButtonLoading(btn, false, originalContent); }
+        }
+
+        async function explainTags() {
+            if (!REPORT_DATA || !REPORT_DATA.data) return showModal("Error", "No data available", true);
+
+            const btn = document.getElementById('explain-tags-btn');
+            const originalContent = toggleButtonLoading(btn, true);
+
+            try {
+                const tags = REPORT_DATA.data.attributes.tags || [];
+                if (tags.length === 0) throw new Error("No technical tags found in this report.");
+                const query = `Explain the security implications of these specific tags found on a file: ${tags.join(', ')}`;
+                const sysPrompt = `You are a Cybersecurity Educator. 1. Group the tags logically. 2. Define each tag simply. 3. Use Google Search. 4. Output as a clean Markdown list.`;
+                const res = await callGemini(query, { google_search: {} }, sysPrompt);
+                displayResults(res.text, res.sources, "Technical Tag Breakdown");
+            } catch (e) { showModal("Error", e.message, true); } finally { toggleButtonLoading(btn, false, originalContent); }
+        }
+
+        // --- 4. UI HELPERS ---
+        function displayResults(markdownText, sources, title = "Analysis Results") {
+            const container = document.getElementById('llm-content');
+            let html = markdownText
+                .replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-blue-800 mt-4 mb-2 border-b border-blue-200 pb-1">$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-800 mt-4 mb-2">$1</h2>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em class="text-gray-700">$1</em>')
+                .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc text-gray-700 mb-1">$1</li>')
+                .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-gray-700 mb-1">$1</li>')
+                .replace(/\n/g, '<br />');
+            html = html.replace(/<br \/><li/g, '<li').replace(/<\/li><br \/>/g, '</li>');
+            let finalHtml = `<div class="prose max-w-none"><h2 class="text-2xl font-bold text-gray-800 mb-4 border-l-4 border-green-500 pl-3">${title}</h2>${html}</div>`;
+            if (sources && sources.length > 0) {
+                finalHtml += `<div class="mt-6 pt-4 border-t border-gray-200 bg-gray-50 p-3 rounded-lg"><p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Grounding Sources</p><ul class="space-y-1">${sources.map(s => `<li class="text-xs truncate"><a href="${s.uri}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline flex items-center"><span class="mr-1">🔗</span> ${s.title || s.uri}</a></li>`).join('')}</ul></div>`;
+            }
+            container.innerHTML = finalHtml;
+            // Uses classList to toggle active state based on CSS
+            document.getElementById('llm-results').classList.add('active');
+        }
+
+        function showModal(title, msg, isErr = false) {
+            const m = document.getElementById('message-modal');
+            const titleEl = document.getElementById('modal-title');
+            titleEl.innerText = title;
+            titleEl.className = `text-xl font-bold mb-3 ${isErr ? 'text-red-600' : 'text-gray-800'}`;
+            document.getElementById('modal-message').innerText = msg;
+            const loading = msg.toLowerCase().includes("wait") || msg.toLowerCase().includes("analyzing") || title.toLowerCase().includes("analyzing");
+            document.getElementById('modal-spinner').classList.toggle('hidden', !loading);
+            const closeBtn = document.getElementById('modal-close');
+            closeBtn.classList.toggle('hidden', loading);
+            closeBtn.onclick = () => { m.classList.remove('flex'); };
+            m.classList.add('flex');
+        }
+
+        function hideModal() {
+            const m = document.getElementById('message-modal');
+            setTimeout(() => { m.classList.remove('flex'); }, 500);
+        }
+        function toggleLlmSection() {
+            const wrapper = document.getElementById('llm-content-wrapper');
+            const icon = document.getElementById('llm-toggle-icon');
+
+            // Toggle Content Visibility
+            if (wrapper.classList.contains('content-hidden')) {
+                wrapper.classList.remove('content-hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                wrapper.classList.add('content-hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        function toggleButtonLoading(btn, isLoading, originalContent = '') {
+            if (isLoading) {
+                const content = btn.innerHTML;
+                // Scale down loader for button
+                btn.innerHTML = `<div class="loader" style="width: 20px; height: 20px; font-size: 8px; margin-right: 8px;"></div> Processing...`;
+                btn.disabled = true;
+                btn.classList.add('opacity-75', 'cursor-not-allowed');
+                return content;
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        // --- 5. TAB SWITCHING ---
+        window.switchTab = function (tabName) {
+            ['detection', 'details', 'behavior', 'relations', 'hardlinks'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const content = document.getElementById(`tab-content-${t}`);
+                if (btn && content) {
+                    // Prevent unhiding tabs that should remain hidden (e.g. Behavior on non-files)
+                    if (btn.classList.contains('hidden')) return;
+
+                    if (t === tabName) {
+                        btn.className = "py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 focus:outline-none transition-colors";
+                        content.classList.remove('hidden');
+                    } else {
+                        btn.className = "py-3 text-sm font-bold text-gray-500 hover:text-gray-700 focus:outline-none transition-colors";
+                        content.classList.add('hidden');
+                    }
+                }
+            });
+
+            if (tabName === 'hardlinks') {
+                loadHardLinks();
+            } else if (tabName === 'relations') {
+                loadRelations();
+            }
+        };
+
+        let _hardLinksLoaded = false;
+        function loadHardLinks() {
+            if (_hardLinksLoaded) return;
+
+            const tbody = document.getElementById('hardlinks-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500 py-4"><div class="loader inline-block w-4 h-4 mr-2" style="border-top-color:#0d6efd"></div>Searching for matches...</td></tr>';
+
+            // Fetch matches based on the current resource ID and Type
+            // Assumes an endpoint like /api/matches exists or handles the query
+            fetch(`/api/matches?type=${RESOURCE_TYPE}&value=${encodeURIComponent(RESOURCE_ID)}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("API response not ok");
+                    return res.json();
+                })
+                .then(data => {
+                    _hardLinksLoaded = true;
+                    tbody.innerHTML = '';
+                    if (!data || data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500 py-4">No other emails found containing this IOC.</td></tr>';
+                        return;
+                    }
+                    data.forEach(item => {
+                        let dateStr = '-';
+                        let timeStr = '-';
+                        if (item.date) {
+                            const d = new Date(item.date);
+                            if (!isNaN(d)) {
+                                const y = d.getFullYear();
+                                const m = String(d.getMonth() + 1).padStart(2, '0');
+                                const day = String(d.getDate()).padStart(2, '0');
+                                dateStr = `${y}-${m}-${day}`;
+                                timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                            }
+                        }
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td class="font-medium text-gray-900">${item.subject || '(No Subject)'}</td><td class="text-gray-600">${item.sender || 'Unknown'}</td><td class="text-gray-500 text-xs">${dateStr}</td><td class="text-gray-500 text-xs">${timeStr}</td><td><a href="/detail/${item.id}" target="_blank" class="text-blue-600 hover:underline text-xs font-bold">View Email</a></td>`;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(err => {
+                    console.warn("Hard Link Fetch Error:", err);
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-4 italic">Unable to load matches (API endpoint /api/matches not found).</td></tr>';
+                });
+        }
+
+        function renderBehavior(behaviorData) {
+            const container = document.getElementById('tab-content-behavior');
+            container.innerHTML = '';
+
+            // Aggregate Data
+            const mitre = new Map();
+            const dns = new Set();
+            const ips = new Set();
+            const files = new Set();
+            const registry = new Set();
+            const commands = new Set();
+
+            behaviorData.forEach(item => {
+                const attrs = item.attributes || {};
+                (attrs.mitre_attack_techniques || []).forEach(m => mitre.set(m.id, m.signature_description));
+                (attrs.dns_lookups || []).forEach(d => dns.add(d.hostname));
+                (attrs.ip_traffic || []).forEach(i => ips.add(i.destination_ip));
+                (attrs.files_dropped || []).forEach(f => files.add(f.sha256 || f.path));
+                (attrs.registry_keys_set || []).forEach(r => registry.add(r.key || r));
+                (attrs.processes_created || []).forEach(p => commands.add(p));
+            });
+
+            // Helper to create section
+            const createSection = (title, items, icon) => {
+                if (items.size === 0) return '';
+                const list = Array.from(items).map(i => `<li class="text-xs font-mono text-gray-700 border-b border-gray-100 py-1 last:border-0 break-all">${i}</li>`).join('');
+                return `<div class="vt-card !p-4"><h3 class="section-label flex items-center gap-2">${icon} ${title} <span class="ml-auto bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-[10px]">${items.size}</span></h3><ul class="max-h-48 overflow-y-auto">${list}</ul></div>`;
+            };
+
+            // MITRE Section
+            let mitreHtml = '';
+            if (mitre.size > 0) {
+                const list = Array.from(mitre.entries()).map(([id, desc]) =>
+                    `<div class="flex flex-col border-b border-gray-100 py-2 last:border-0"><span class="font-bold text-xs text-red-600">${id}</span><span class="text-xs text-gray-700">${desc}</span></div>`
+                ).join('');
+                mitreHtml = `<div class="vt-card !p-4 md:col-span-2"><h3 class="section-label flex items-center gap-2">🛡️ MITRE ATT&CK Techniques</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 max-h-60 overflow-y-auto">${list}</div></div>`;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    ${mitreHtml}
+                    ${createSection('DNS Lookups', dns, '🌐')}
+                    ${createSection('IP Traffic', ips, '🔌')}
+                    ${createSection('Files Dropped', files, '📁')}
+                    ${createSection('Registry Keys', registry, '📝')}
+                    ${createSection('Processes / Commands', commands, '⚙️')}
+                </div>
+            `;
+        }
+
+        let _relationsLoaded = false;
+        function loadRelations() {
+            if (_relationsLoaded || RESOURCE_TYPE !== 'ip_address') return;
+
+            // Show loading state
+            ['dns', 'comm', 'ref', 'whois'].forEach(rel => {
+                const section = document.getElementById(`rel-${rel}-section`);
+                const tbody = document.getElementById(`rel-${rel}-tbody`);
+                if (section && tbody) {
+                    section.classList.remove('hidden');
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4"><div class="loader inline-block w-4 h-4 mr-2" style="border-top-color:#0d6efd"></div>Loading...</td></tr>';
+                }
+            });
+
+            // Fetch all relations at once
+            fetch(`/api/fetch_vt_relations/ip_address/${encodeURIComponent(RESOURCE_ID)}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("API response not ok");
+                    return res.json();
+                })
+                .then(data => {
+                    _relationsLoaded = true;
+                    renderRelations(data);
+                })
+                .catch(err => {
+                    console.warn("Relations Fetch Error:", err);
+                    ['dns', 'comm', 'ref', 'whois'].forEach(rel => {
+                        const tbody = document.getElementById(`rel-${rel}-tbody`);
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-4 italic">Unable to load relations data.</td></tr>';
+                    });
+                });
+        }
+
+        function renderRelations(relationsData) {
+            // Helper for Date Styling
+            const fmtDate = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts * 1000);
+                return d.toISOString().replace('T', ' ').substring(0, 16);
+            };
+
+            // Helper for Detection Column
+            const renderDetection = (stats) => {
+                if (!stats) return '<span class="text-gray-400">-</span>';
+                const mal = stats.malicious || 0;
+                const total = (stats.malicious + stats.undetected + stats.harmless + stats.suspicious) || 0;
+                if (mal > 0) {
+                    return `<span class="text-red-600 font-bold flex items-center gap-1">
+                                <span class="h-2 w-2 rounded-full bg-red-500"></span> ${mal}/${total}
+                             </span>`;
+                }
+                return `<span class="text-green-600 flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-green-500"></span> 0/${total}</span>`;
+            };
+
+            // Helper for File Name
+            const getFileName = (attrs, id) => {
+                if (attrs.names && Array.isArray(attrs.names) && attrs.names.length > 0) return attrs.names[0];
+                if (attrs.meaningful_name) return attrs.meaningful_name;
+                return `<span class="font-mono text-gray-400 italic" title="Filename unavailable">${id.substring(0, 12)}...</span>`;
+            };
+
+            // 1. Passive DNS
+            const dnsData = relationsData.resolutions || [];
+            const dnsSection = document.getElementById('rel-dns-section');
+            if (dnsData.length > 0) {
+                dnsSection.classList.remove('hidden');
+                document.getElementById('rel-dns-badge').textContent = dnsData.length;
+                const tbody = document.getElementById('rel-dns-tbody');
+                tbody.innerHTML = dnsData.map(item => {
+                    const attrs = item.attributes || {};
+                    return `<tr>
+                        <td class="whitespace-nowrap text-gray-600">${fmtDate(attrs.date || attrs.last_resolved)}</td>
+                        <td>${renderDetection(attrs.host_name_last_analysis_stats || attrs.last_analysis_stats)}</td>
+                        <td class="text-gray-600 text-xs">${attrs.resolver || '-'}</td>
+                        <td class="font-mono text-sm text-blue-600 break-all">${attrs.host_name || item.id || '-'}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                document.getElementById('rel-dns-tbody').innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-4">No DNS resolutions found</td></tr>';
+            }
+
+            // 2. Communicating Files
+            const commData = relationsData.communicating_files || [];
+            const commSection = document.getElementById('rel-comm-section');
+            if (commData.length > 0) {
+                commSection.classList.remove('hidden');
+                document.getElementById('rel-comm-badge').textContent = commData.length;
+                const tbody = document.getElementById('rel-comm-tbody');
+                tbody.innerHTML = commData.map(item => {
+                    const attrs = item.attributes || {};
+                    return `<tr>
+                        <td class="whitespace-nowrap text-gray-600">${fmtDate(attrs.last_analysis_date)}</td>
+                        <td>${renderDetection(attrs.last_analysis_stats)}</td>
+                        <td class="text-xs uppercase font-bold text-gray-500">${attrs.type_description || attrs.type_tag || '-'}</td>
+                        <td class="font-mono text-xs break-all" title="${item.id}">${getFileName(attrs, item.id)}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                document.getElementById('rel-comm-tbody').innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-4">No communicating files found</td></tr>';
+            }
+
+            // 3. Files Referring
+            const refData = relationsData.referrer_files || [];
+            const refSection = document.getElementById('rel-ref-section');
+            if (refData.length > 0) {
+                refSection.classList.remove('hidden');
+                document.getElementById('rel-ref-badge').textContent = refData.length;
+                const tbody = document.getElementById('rel-ref-tbody');
+                tbody.innerHTML = refData.map(item => {
+                    const attrs = item.attributes || {};
+                    return `<tr>
+                        <td class="whitespace-nowrap text-gray-600">${fmtDate(attrs.last_analysis_date)}</td>
+                        <td>${renderDetection(attrs.last_analysis_stats)}</td>
+                        <td class="text-xs uppercase font-bold text-gray-500">${attrs.type_description || attrs.type_tag || '-'}</td>
+                        <td class="font-mono text-xs break-all" title="${item.id}">${getFileName(attrs, item.id)}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                document.getElementById('rel-ref-tbody').innerHTML = '<tr><td colspan="4" class="text-center text-gray-400 py-4">No referring files found</td></tr>';
+            }
+
+            // 4. Historical Whois
+            const whoisData = relationsData.historical_whois || [];
+            const whoisSection = document.getElementById('rel-whois-section');
+            if (whoisData.length > 0) {
+                whoisSection.classList.remove('hidden');
+                document.getElementById('rel-whois-badge').textContent = whoisData.length;
+                const tbody = document.getElementById('rel-whois-tbody');
+
+                const getWhoisField = (map, keys) => {
+                    if (!map) return '-';
+                    const mapKeys = Object.keys(map);
+                    for (let k of keys) {
+                        const match = mapKeys.find(mk => mk.toLowerCase().includes(k.toLowerCase()));
+                        if (match) return map[match];
+                    }
+                    return '-';
+                };
+
+                tbody.innerHTML = whoisData.map((item, idx) => {
+                    const attrs = item.attributes || {};
+                    const parsed = attrs.whois_map || {};
+                    const org = getWhoisField(parsed, ['organization', 'registrant organization', 'org']);
+                    const email = getWhoisField(parsed, ['email', 'registrant email', 'e-mail']);
+                    const dateVal = attrs.last_updated || attrs.updated_date || attrs.date;
+
+                    return `<tr>
+                        <td class="whitespace-nowrap text-gray-600">${fmtDate(dateVal)}</td>
+                        <td class="font-medium text-gray-800 text-xs">${org !== '-' ? org : '<span class="text-gray-300">N/A</span>'}</td>
+                        <td class="text-blue-600 text-xs">${email !== '-' ? email : '<span class="text-gray-300">N/A</span>'}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                document.getElementById('rel-whois-tbody').innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 py-4">No historical whois found</td></tr>';
+            }
+        }
+
+        function copyToClipboard(elementId, btn) {
+            const text = document.getElementById(elementId).textContent;
+            if (!text || text === '-') return;
+            navigator.clipboard.writeText(text).then(() => {
+                const original = btn.innerText;
+                btn.innerText = "Copied!";
+                setTimeout(() => btn.innerText = original, 1500);
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='network_check.js') }}"></script>
+    <script src="{{ url_for('static', filename='global_notifications.js') }}"></script>
+</body>
+
+</html>

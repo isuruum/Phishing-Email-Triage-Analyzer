@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Triage Table</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/tailwind.css') }}">
+
+    <style>
+        /* ====1. GLOBAL & TYPOGRAPHY===== */
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            color: #1f2937;
+        }
+
+        /* Sidebar padding for desktop only */
+        @media (min-width: 768px) {
+            body {
+                padding-left: 100px;
+                transition: padding-left 0.3s ease;
+            }
+        }
+
+        .main-container {
+            max-width: 98%;
+            margin: 0 auto;
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ====2. CARDS & PANELS==== */
+        .vt-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+            padding: 1.5rem;
+        }
+
+        /* =====3. TABLES===== */
+        .vt-table-container {
+            overflow-x: auto;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+            background: white;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .vt-table {
+            width: 100%;
+            text-align: left;
+            font-size: 0.875rem;
+            border-collapse: collapse;
+        }
+
+        .vt-table th {
+            background-color: #F0F2FF;
+            color: #0d6efd;
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        .vt-table td {
+            padding: 1rem 1.5rem;
+            vertical-align: middle;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .vt-table tr {
+            transition: background-color 0.2s;
+        }
+
+        .vt-table tr:hover {
+            background-color: #f9fafb;
+            border-color: #507BFC;
+        }
+
+        /* =====4. TOASTS===== */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 90%;
+            max-width: 800px;
+            pointer-events: none;
+        }
+
+        .message {
+            width: 100%;
+            padding: 16px 20px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-left: 6px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-size: 0.95rem;
+            color: #333;
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.3s ease-out;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .message.success {
+            border-left-color: #28a745;
+        }
+
+        .message.success::before {
+            content: "✓";
+            color: #28a745;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .message.error {
+            border-left-color: #dc3545;
+        }
+
+        .message.error::before {
+            content: "⚠";
+            color: #dc3545;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .message.fade-out {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <div class="main-container space-y-6" style="margin-left: 30px;">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800 text-gradient">Phishing Triage Table</h1>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        <div id="toast-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, msg in messages %}
+            <div class="message {{ category }}">{{ msg }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div class="vt-card !p-3 flex flex-col md:flex-row gap-4 items-center" style="margin-top: 15px;">
+            <div class="flex-1 w-full relative">
+                <div class="absolute left-3 top-1/2 transform -translate-y-1/2 z-20 group">
+                    <span class="text-gray-400 cursor-help">🔍</span>
+                    <div
+                        class="invisible group-hover:visible opacity-0 group-hover:opacity-100 absolute top-full left-0 mt-3 w-72 p-3 bg-gray-800 text-white text-xs rounded shadow-xl transition-all duration-200 z-50">
+                        <div class="font-bold mb-2 border-b border-gray-600 pb-1">Lucene Query Syntax Samples</div>
+                        <ul class="space-y-1 text-gray-300">
+                            <li><span class="text-blue-300">sender:</span>alice</li>
+                            <li><span class="text-blue-300">subject:</span>urgent invoice</li>
+                            <li><span class="text-blue-300">status:</span>malicious</li>
+                            <li><span class="text-blue-300">score:</span>0</li>
+                            <li><span class="text-blue-300">filename:</span>invoice</li>
+                            <li class="border-t border-gray-700 pt-1 mt-1"><span
+                                    class="text-yellow-300 font-semibold">Time & Date:</span></li>
+                            <li><span class="text-blue-300">time:</span>10:50AM <span class="text-gray-500">(or
+                                    10.50AM)</span></li>
+                            <li><span class="text-blue-300">time:</span>[10:00AM TO 11:30AM]</li>
+                            <li><span class="text-blue-300">date:</span>2026-02-11</li>
+                            <li class="border-t border-gray-700 pt-1 mt-1"><span
+                                    class="text-yellow-300 font-semibold">Numeric Comparisons:</span></li>
+                            <li><span class="text-blue-300">files:</span>>1 <span class="text-gray-500">(more than
+                                    1)</span></li>
+                            <li><span class="text-blue-300">ips:</span>>=1 <span class="text-gray-500">(1 or
+                                    more)</span></li>
+                            <li><span class="text-blue-300">urls:</span>
+                                <1 <span class="text-gray-500">(less than 1)</span>
+                            </li>
+                            <li><span class="text-blue-300">score:</span>>=5 <span class="text-gray-500">(5 or
+                                    more)</span></li>
+                            <li class="border-t border-gray-700 pt-1 mt-1"><span
+                                    class="text-yellow-300 font-semibold">Combined Queries:</span></li>
+                            <li><span class="text-blue-300">files:</span>>1 <span class="text-blue-300">ips:</span>>1
+                            </li>
+                            <li><span class="text-blue-300">files:</span>>=1 <span class="text-blue-300">urls:</span>>=1
+                            </li>
+                            <li><span class="text-blue-300">files:</span>>1 <span class="text-blue-300">ips:</span>>1
+                                <span class="text-blue-300">urls:</span>>1</li>
+                            <li class="border-t border-gray-700 pt-1 mt-1"><span
+                                    class="text-yellow-300 font-semibold">Ranges & Logic:</span></li>
+                            <li><span class="text-blue-300">date:</span>[2024-01-01 TO 2024-01-31]</li>
+                            <li><span class="text-blue-300">sender:</span>alice OR sender:bob</li>
+                        </ul>
+                        <div class="absolute -top-1 left-1.5 w-2 h-2 bg-gray-800 transform rotate-45"></div>
+                    </div>
+                </div>
+                <input type="text" id="searchInput" placeholder="Search (e.g. sender:alice status:malicious)..."
+                    class="w-full pl-10 pr-10 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                <button id="clearSearchBtn"
+                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden focus:outline-none"
+                    title="Clear search">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="w-full md:w-auto border-l border-gray-200 pl-4">
+                <select id="statusFilter"
+                    class="w-full md:w-48 p-2 bg-transparent text-sm font-medium text-gray-600 focus:outline-none cursor-pointer hover:text-blue-600">
+                    <option value="">All Statuses</option>
+                    <option value="MALICIOUS_DETECTED">Malicious Detected</option>
+                    <option value="CLEAN_ANALYZED">Clean Analyzed</option>
+                    <option value="CLEAN_NO_IOCS">Clean no IOCS</option>
+                    <option value="FAILED">Failed</option>
+                    <option value="ANALYZING_VT">Analyzing VT</option>
+                </select>
+            </div>
+            <button id="searchBtn"
+                class="hidden md:block btn bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm py-2 px-4 rounded-full">
+                Filter
+            </button>
+        </div>
+
+        <!-- Table Container -->
+        <div class="vt-table-container" style="margin-top: 10px;">
+            <table id="emailTable" class="vt-table">
+                <thead>
+                    <tr>
+                        <th class="w-16">ID</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Sender</th>
+                        <th>Receiver</th>
+                        <th>Subject</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                    <tr class="hover:bg-gray-50 transition-colors cursor-pointer"
+                        data-url-flags="{{ email.vt_score.url_flags if email.vt_score and email.vt_score.url_flags is defined else 0 }}"
+                        data-file-flags="{{ email.vt_score.file_flags if email.vt_score and email.vt_score.file_flags is defined else 0 }}"
+                        data-ip-flags="{{ email.vt_score.ip_flags if email.vt_score and email.vt_score.ip_flags is defined else 0 }}"
+                        data-filename="{{ email.uploaded_filename | default('') | e }}"
+                        onclick="if(window.getSelection().toString().length === 0) window.location.href='{{ url_for('detail', email_id=email.id) }}'">
+                        <td class="font-medium text-gray-900">{{ email.id }}</td>
+                        <td class="text-gray-500">{{ email.submission_time[:10] }}</td>
+                        <td class="text-gray-500">{{ email.submission_time | format_time }}</td>
+                        <td class="text-gray-500 max-w-xs truncate" title="{{ email.sender | e }}">{{ (email.sender if
+                            email.sender else 'N/A') | e }}</td>
+                        <td class="text-gray-500 max-w-xs truncate" title="{{ email.receiver | e }}">
+                            {% if email.receiver %}
+                            {% set recs = email.receiver.split(',') %}
+                            {{ recs[0] | e }}{% if recs|length > 1 %}...{% endif %}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td class="text-gray-500 max-w-xs truncate" title="{{ email.subject | e }}">
+                            {{ (email.subject if email.subject else 'N/A') | e }}
+                        </td>
+
+                        <td>
+                            {% if email.vt_score and email.vt_score.url_flags is defined %}
+                            <div
+                                class="text-lg font-bold {% if email.total_flags > 0 %}text-red-600{% else %}text-teal-500{% endif %}">
+                                {{ email.total_flags }}
+                            </div>
+                            {% else %}
+                            <span class="text-gray-400 text-xs">Analyzing...</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span data-status="{{ email.status }}" class="px-3 py-1 rounded-full text-xs font-bold 
+                                {% if email.status == 'MALICIOUS_DETECTED' %}bg-red-500 text-white
+                                {% elif email.status == 'CLEAN_NO_IOCS' %}bg-green-500 text-white
+                                {% elif email.status == 'CLEAN_ANALYZED' %}bg-gradient-to-r from-yellow-400 to-green-500 text-white
+                                {% else %}bg-yellow-500 text-gray-800{% endif %}">
+                                {{ email.status | replace('_', ' ') }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-10 text-gray-400">
+                            No emails found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="paginationControls" class="flex flex-col md:flex-row justify-self-center items-center gap-4 px-2">
+            <div class="text-sm text-gray-600 font-medium">
+                Showing <span id="startRecord">0</span> to <span id="endRecord">0</span> of <span
+                    id="totalRecords">0</span> entries
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="rowsPerPage"
+                    class="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                    <option value="10">10 per page</option>
+                    <option value="50" selected>50 per page</option>
+                    <option value="100">100 per page</option>
+                    <option value="150">150 per page</option>
+                </select>
+                <button id="prevBtn"
+                    class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                <div class="flex items-center gap-1">
+                    <span class="text-sm text-gray-600">Page</span>
+                    <input type="number" id="pageInput" min="1" value="1"
+                        class="w-12 p-1 text-center text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                    <span class="text-sm text-gray-600">of <span id="totalPages">1</span></span>
+                </div>
+                <button id="nextBtn"
+                    class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" id="detail-url-base" value="{{ url_for('detail', email_id=0) }}">
+
+    <!-- Jump to Top Button -->
+    <button id="scrollTopBtn"
+        class="fixed bottom-10 right-8 z-50 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 transform opacity-0 invisible translate-y-10 focus:outline-none"
+        aria-label="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+    </button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // ===== UPDATED FLASH MESSAGE LOGIC =====
+            const messages = document.querySelectorAll('.message');
+
+            messages.forEach(msg => {
+                // Function to remove element completely after animation
+                const removeMessage = () => {
+                    msg.classList.add('fade-out');
+                    // Wait for CSS transition (0.4s) to finish before killing DOM element
+                    msg.addEventListener('transitionend', () => {
+                        if (msg.parentNode) msg.remove();
+                    });
+                };
+
+                // Auto dismiss after 5 seconds
+                setTimeout(removeMessage, 5000);
+
+                // Click to dismiss immediately
+                msg.addEventListener('click', removeMessage);
+            });
+
+            // ===== SEARCH, FILTER & PAGINATION LOGIC =====
+            const searchInput = document.getElementById('searchInput');
+            const clearSearchBtn = document.getElementById('clearSearchBtn');
+            const searchBtn = document.getElementById('searchBtn');
+            const statusFilter = document.getElementById('statusFilter');
+
+            // Pagination Elements
+            const rowsPerPageSelect = document.getElementById('rowsPerPage');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const pageInput = document.getElementById('pageInput');
+
+            // State Variables
+            let allRows = Array.from(document.querySelectorAll('#emailTable tbody tr'));
+            let matchedRows = [];
+            let currentPage = 1;
+            let rowsPerPage = 50;
+
+            function toggleClearBtn() {
+                if (searchInput.value.length > 0) {
+                    clearSearchBtn.classList.remove('hidden');
+                } else {
+                    clearSearchBtn.classList.add('hidden');
+                }
+            }
+
+            // Helper function to normalize time string for comparison
+            function normalizeTime(timeStr) {
+                // Convert to lowercase and remove spaces
+                timeStr = timeStr.toLowerCase().trim().replace(/\s+/g, '');
+                // Replace dots with colons for consistency
+                timeStr = timeStr.replace(/\./g, ':');
+                return timeStr;
+            }
+
+            // Helper function to convert time to minutes for range comparison
+            function timeToMinutes(timeStr) {
+                // Normalize first
+                timeStr = normalizeTime(timeStr);
+
+                // Parse time like "10:50am" or "2:30pm"
+                const match = timeStr.match(/^(\d{1,2}):(\d{2})(am|pm)$/i);
+                if (!match) return null;
+
+                let hours = parseInt(match[1]);
+                const minutes = parseInt(match[2]);
+                const meridiem = match[3].toLowerCase();
+
+                // Convert to 24-hour format
+                if (meridiem === 'pm' && hours !== 12) hours += 12;
+                if (meridiem === 'am' && hours === 12) hours = 0;
+
+                return hours * 60 + minutes;
+            }
+
+            function parseLuceneQuery(query) {
+                const tokens = [];
+                // Regex captures:
+                // 1. Field with Range: field:[start TO end]
+                // 2. Field with Quotes: field:"value"
+                // 3. Field Simple: field:value
+                // 4. Global Quotes: "value"
+                // 5. Global Simple: value
+                const regex = /([a-zA-Z0-9_]+):(?:\[(\S+)\s+TO\s+(\S+)\]|"([^"]+)"|([^"\s]+))|"([^"]+)"|([^"\s]+)/gi;
+
+                let match;
+                while ((match = regex.exec(query)) !== null) {
+                    if (match[1]) {
+                        const field = match[1].toLowerCase();
+                        if (match[2] && match[3]) {
+                            tokens.push({ type: 'range', field, start: match[2], end: match[3] });
+                        } else {
+                            tokens.push({ type: 'match', field, value: (match[4] || match[5]).toLowerCase() });
+                        }
+                    } else {
+                        const val = (match[6] || match[7]);
+                        if (val) {
+                            const upperVal = val.toUpperCase();
+                            if (upperVal === 'AND' || upperVal === 'OR') {
+                                tokens.push({ type: 'operator', value: upperVal });
+                            } else {
+                                tokens.push({ type: 'global', value: val.toLowerCase() });
+                            }
+                        }
+                    }
+                }
+                return tokens;
+            }
+
+            function applyFilterAndPaginate(resetPage = true) {
+                const query = searchInput.value.trim();
+                const statusValue = statusFilter.value.trim().toUpperCase();
+                const tokens = parseLuceneQuery(query);
+
+                if (resetPage) currentPage = 1;
+
+                matchedRows = allRows.filter(row => {
+                    // Skip rows that are not data rows (e.g. "No emails found")
+                    if (row.cells.length < 8) return false;
+                    //Searchable data extraction
+                    const data = {
+                        id: row.cells[0].innerText.trim().toLowerCase(),
+                        date: row.cells[1].innerText.trim(), // Keep case/format for range comparison
+                        time: row.cells[2].innerText.toLowerCase(),
+                        sender: row.cells[3].innerText.toLowerCase(),
+                        receiver: row.cells[4].innerText.toLowerCase(),
+                        subject: row.cells[5].innerText.toLowerCase(),
+                        score: parseFloat(row.cells[6].innerText) || 0,
+                        status: (row.cells[7].querySelector('[data-status]')?.getAttribute('data-status') || '').toLowerCase(),
+                        files: parseInt(row.getAttribute('data-file-flags') || '0', 10),
+                        urls: parseInt(row.getAttribute('data-url-flags') || '0', 10),
+                        ips: parseInt(row.getAttribute('data-ip-flags') || '0', 10),
+                        filename: (row.getAttribute('data-filename') || '').toLowerCase()
+                    };
+
+                    if (statusValue && data.status.toUpperCase() !== statusValue) return false;
+
+                    if (tokens.length === 0) return true;
+
+                    let result = true;
+                    let currentOp = 'AND';
+                    let firstTerm = true;
+
+                    for (const token of tokens) {
+                        if (token.type === 'operator') {
+                            currentOp = token.value;
+                            continue;
+                        }
+
+                        let match = false;
+                        if (token.type === 'range') {
+                            const val = data[token.field];
+                            if (val !== undefined) {
+                                // Special handling for time ranges
+                                if (token.field === 'time') {
+                                    const valMinutes = timeToMinutes(val);
+                                    const startMinutes = timeToMinutes(token.start);
+                                    const endMinutes = timeToMinutes(token.end);
+                                    if (valMinutes !== null && startMinutes !== null && endMinutes !== null) {
+                                        match = valMinutes >= startMinutes && valMinutes <= endMinutes;
+                                    }
+                                } else if (typeof val === 'number') {
+                                    match = val >= Number(token.start) && val <= Number(token.end);
+                                } else {
+                                    match = val >= token.start && val <= token.end;
+                                }
+                            }
+                        } else if (token.type === 'match') {
+                            const val = data[token.field];
+                            if (val !== undefined) {
+                                // Special handling for time field
+                                if (token.field === 'time') {
+                                    const normalizedVal = normalizeTime(val);
+                                    const normalizedSearch = normalizeTime(token.value);
+                                    match = normalizedVal.includes(normalizedSearch);
+                                } else if (typeof val === 'number') {
+                                    const opMatch = token.value.match(/^([<>]=?)(.+)$/);
+                                    if (opMatch) {
+                                        const num = Number(opMatch[2]);
+                                        if (opMatch[1] === '>') match = val > num;
+                                        else if (opMatch[1] === '>=') match = val >= num;
+                                        else if (opMatch[1] === '<') match = val < num;
+                                        else if (opMatch[1] === '<=') match = val <= num;
+                                    } else {
+                                        match = val === Number(token.value);
+                                    }
+                                } else if (token.field === 'id') {
+                                    match = val === token.value;
+                                } else {
+                                    match = val.includes(token.value);
+                                }
+                            }
+                        } else if (token.type === 'global') {
+                            match = Object.values(data).some(v => String(v).toLowerCase().includes(token.value));
+                        }
+
+                        if (firstTerm) {
+                            result = match;
+                            firstTerm = false;
+                        } else {
+                            result = (currentOp === 'AND') ? (result && match) : (result || match);
+                            currentOp = 'AND'; // Reset to default
+                        }
+                    }
+
+                    return result;
+                });
+
+                renderPagination();
+            }
+
+            function renderPagination() {
+                // 1. Hide all rows initially
+                allRows.forEach(row => row.style.display = 'none');
+
+                // 2. Calculate pagination bounds
+                const totalItems = matchedRows.length;
+                const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+
+                // Ensure current page is valid
+                if (currentPage > totalPages) currentPage = totalPages;
+                if (currentPage < 1) currentPage = 1;
+
+                const startIndex = (currentPage - 1) * rowsPerPage;
+                const endIndex = Math.min(startIndex + rowsPerPage, totalItems);
+
+                // 3. Show only rows for current page
+                const visibleRows = matchedRows.slice(startIndex, startIndex + rowsPerPage);
+                visibleRows.forEach(row => row.style.display = '');
+
+                // 4. Update UI Controls
+                document.getElementById('startRecord').textContent = totalItems > 0 ? startIndex + 1 : 0;
+                document.getElementById('endRecord').textContent = endIndex;
+                document.getElementById('totalRecords').textContent = totalItems;
+                document.getElementById('totalPages').textContent = totalPages;
+
+                pageInput.value = currentPage;
+                pageInput.max = totalPages;
+
+                prevBtn.disabled = currentPage === 1;
+                nextBtn.disabled = currentPage === totalPages;
+            }
+
+            // ===== STATE MANAGEMENT (Persistence) =====
+            function saveState() {
+                const state = {
+                    query: searchInput.value,
+                    status: statusFilter.value,
+                    rowsPerPage: rowsPerPage,
+                    currentPage: currentPage,
+                    scrollTop: window.scrollY
+                };
+                sessionStorage.setItem('triageTableState', JSON.stringify(state));
+            }
+
+            function loadState() {
+                // Check navigation context to decide whether to keep state
+                const navEntry = performance.getEntriesByType("navigation")[0];
+                const navType = navEntry ? navEntry.type : '';
+                const isReload = navType === 'reload';
+                const isBackForward = navType === 'back_forward';
+                const referrer = document.referrer || "";
+                // Keep state only if reloading, using browser back/forward, or returning from detail page
+                const fromDetail = referrer.includes('detail');
+
+                if (!isReload && !isBackForward && !fromDetail) {
+                    sessionStorage.removeItem('triageTableState');
+                }
+
+                const saved = sessionStorage.getItem('triageTableState');
+                if (saved) {
+                    try {
+                        const state = JSON.parse(saved);
+                        searchInput.value = state.query || '';
+                        statusFilter.value = state.status || '';
+                        rowsPerPage = state.rowsPerPage || 50;
+                        currentPage = state.currentPage || 1;
+
+                        rowsPerPageSelect.value = rowsPerPage;
+
+                        // Apply filter without resetting page
+                        applyFilterAndPaginate(false);
+
+                        // Restore scroll position
+                        if (state.scrollTop) {
+                            setTimeout(() => window.scrollTo(0, state.scrollTop), 0);
+                        }
+                    } catch (e) {
+                        console.error("Failed to load state", e);
+                        applyFilterAndPaginate();
+                    }
+                } else {
+                    applyFilterAndPaginate();
+                }
+                toggleClearBtn();
+            }
+
+            // Event Listeners
+            searchBtn.addEventListener('click', () => { applyFilterAndPaginate(true); saveState(); });
+            searchInput.addEventListener('input', () => {
+                toggleClearBtn();
+                applyFilterAndPaginate(true);
+                saveState();
+            });
+
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                toggleClearBtn();
+                applyFilterAndPaginate(true);
+                saveState();
+                searchInput.focus();
+            });
+            statusFilter.addEventListener('change', () => { applyFilterAndPaginate(true); saveState(); });
+
+            rowsPerPageSelect.addEventListener('change', (e) => {
+                rowsPerPage = parseInt(e.target.value);
+                applyFilterAndPaginate(true);
+                saveState();
+            });
+
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPagination();
+                    window.scrollTo(0, 0);
+                    saveState();
+                }
+            });
+
+            nextBtn.addEventListener('click', () => {
+                const max = Math.ceil(matchedRows.length / rowsPerPage);
+                if (currentPage < max) {
+                    currentPage++;
+                    renderPagination();
+                    window.scrollTo(0, 0);
+                    saveState();
+                }
+            });
+
+            pageInput.addEventListener('change', () => {
+                currentPage = parseInt(pageInput.value);
+                renderPagination();
+                saveState();
+            });
+
+            // Save state when clicking any row to navigate:
+            document.getElementById('emailTable').addEventListener('click', (e) => {
+                if (e.target.closest('tr')) saveState();
+            });
+
+            // ===== SCROLL TO TOP LOGIC =====
+            const scrollTopBtn = document.getElementById('scrollTopBtn');
+
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 300) {
+                    scrollTopBtn.classList.remove('opacity-0', 'invisible', 'translate-y-10');
+                } else {
+                    scrollTopBtn.classList.add('opacity-0', 'invisible', 'translate-y-10');
+                }
+            });
+
+            scrollTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            loadState();
+        });
+    </script>
+    <script src="{{ url_for('static', filename='network_check.js') }}"></script>
+    <script src="{{ url_for('static', filename='sidebar_loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='table_view_refresh.js') }}"></script>
+    <script src="{{ url_for('static', filename='global_notifications.js') }}"></script>
+</body>
+
+</html>

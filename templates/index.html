@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Triage Submission</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/tailwind.css') }}">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #1f2937;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-color: #f3f4f6;
+            background-image: url("{{ url_for('serve_bg_image', filename='bg.png') }}");
+            background-size: cover;
+            background-position: center;
+            filter: blur(8px);
+            transform: scale(1.1);
+        }
+
+        /* Sidebar padding for desktop only */
+        @media (min-width: 768px) {
+            body {
+                padding-left: 100px !important;
+                transition: padding-left 0.3s ease;
+            }
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #drop-zone {
+            border: 2px dashed #d1d5db;
+            /* border-gray-300 */
+            transition: all 0.2s ease;
+            background-color: #f8fafc;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        #drop-zone.drag-over {
+            border-color: #0d6efd;
+            /* vt.blue */
+            background-color: #eff6ff;
+            /* blue-50 */
+        }
+
+        /* Toast Notification Styles */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 90%;
+            max-width: 800px;
+            pointer-events: none;
+        }
+
+        .message {
+            width: 100%;
+            padding: 16px 20px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-left: 6px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-size: 0.95rem;
+            color: #333;
+            transition: all 0.3s ease-out;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .message.error {
+            border-left-color: #dc3545;
+        }
+
+        .message.error::before {
+            content: "⚠ ";
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .message.fade-out {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center min-h-screen p-4 md:p-8">
+    <div id="toast-container"></div>
+    <div class="w-full max-w-2xl">
+        <div class="bg-white p-8 rounded-xl shadow-md border border-gray-200">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 text-gradient">Submit Suspicious Email</h1>
+                <p class="text-gray-500 mt-2">
+                    Upload <strong>.eml</strong> or <strong>.msg</strong> files for automated forensic analysis.
+                </p>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" action="/" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div>
+                    <label id="drop-zone" for="file-input"
+                        class="flex flex-col items-center justify-center w-full h-48 rounded-lg cursor-pointer">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or
+                                drag and drop</p>
+                            <p class="text-xs text-gray-500">Supports .EML and .MSG files</p>
+                        </div>
+                        <input id="file-input" type="file" name="email_file" accept=".eml,.msg" required multiple
+                            class="hidden">
+                    </label>
+                </div>
+
+                <div id="file-list-container" class="hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-medium text-gray-700">Selected Files:</p>
+                        <button type="button" id="clear-files-btn"
+                            class="text-xs text-red-500 hover:text-red-700 font-medium hover:underline">
+                            Clear all
+                        </button>
+                    </div>
+                    <div id="file-list"
+                        class="space-y-2 bg-gray-50 p-3 rounded-md border border-gray-200 max-h-40 overflow-y-auto">
+                        <!-- File names will be populated here by JS -->
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-3 text-center transition-transform hover:scale-[1.02]">
+                    Upload & Analyze
+                </button>
+                <div class="text-center mt-6">
+                    <a href="{{ url_for('table_view') }}" class="font-medium text-blue-600 hover:underline">
+                        View Triage Table →
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if message %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-6" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline">{{ message }}</span>
+        </div>
+        {% endif %}
+        
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileListContainer = document.getElementById('file-list-container');
+        const fileList = document.getElementById('file-list');
+        const clearFilesBtn = document.getElementById('clear-files-btn');
+
+        // Global storage for accumulated files
+        const globalDataTransfer = new DataTransfer();
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            validateAndProcessFiles(dt.files);
+        }
+
+        // Update file list when input changes (from drop or click) Client-side validation to filter out unsupported files
+        fileInput.addEventListener('change', () => {
+            validateAndProcessFiles(fileInput.files);
+        });
+
+        function validateAndProcessFiles(files) {
+            const validExtensions = ['.eml', '.msg'];
+            const invalidFiles = [];
+
+            Array.from(files).forEach(file => {
+                const name = file.name.toLowerCase();
+                if (validExtensions.some(ext => name.endsWith(ext))) {
+                    // Check for duplicates in globalDataTransfer
+                    let isDuplicate = false;
+                    for (let i = 0; i < globalDataTransfer.items.length; i++) {
+                        const existingFile = globalDataTransfer.files[i];
+                        if (existingFile.name === file.name && existingFile.size === file.size) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                    if (!isDuplicate) {
+                        globalDataTransfer.items.add(file);
+                    }
+                } else {
+                    invalidFiles.push(file.name);
+                }
+            });
+
+            fileInput.files = globalDataTransfer.files;
+
+            if (invalidFiles.length > 0) {
+                showNotification(`Unsupported file(s) removed: ${invalidFiles.join(', ')}`, 'error');
+            }
+
+            updateFileList();
+        }
+
+        // Clear files button handler
+        clearFilesBtn.addEventListener('click', () => {
+            globalDataTransfer.items.clear();
+            fileInput.value = '';
+            updateFileList();
+        });
+
+        function removeFile(index) {
+            const newDt = new DataTransfer();
+            const files = globalDataTransfer.files;
+
+            for (let i = 0; i < files.length; i++) {
+                if (i !== index) newDt.items.add(files[i]);
+            }
+
+            globalDataTransfer.items.clear();
+            for (let i = 0; i < newDt.files.length; i++) {
+                globalDataTransfer.items.add(newDt.files[i]);
+            }
+
+            fileInput.files = globalDataTransfer.files;
+            updateFileList();
+        }
+
+        function updateFileList() {
+            if (!fileInput.files.length) {
+                fileListContainer.classList.add('hidden');
+                return;
+            }
+
+            fileListContainer.classList.remove('hidden');
+            clearFilesBtn.textContent = `Clear all (${fileInput.files.length})`;
+            fileList.innerHTML = ''; // Clear existing list
+
+            Array.from(fileInput.files).forEach((file, index) => {
+                const fileElement = document.createElement('div');
+                fileElement.className = 'text-sm text-gray-800 bg-white p-2 rounded border border-gray-300 flex items-center gap-2';
+                fileElement.innerHTML = `
+                    <button type="button" onclick="removeFile(${index})" class="p-1 text-gray-500 hover:text-red-500 hover:bg-gray-100 rounded-full focus:outline-none flex-shrink-0 transition-colors" title="Remove file">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                    <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span class="truncate">${file.name}</span>
+                    <span class="text-xs text-gray-400 ml-auto flex-shrink-0">${(file.size / 1024).toFixed(1)} KB</span>
+                `;
+                fileList.appendChild(fileElement);
+            });
+        }
+
+        function showNotification(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}`;
+            msgDiv.textContent = message;
+
+            msgDiv.onclick = () => {
+                msgDiv.classList.add('fade-out');
+                setTimeout(() => msgDiv.remove(), 400);
+            };
+
+            container.appendChild(msgDiv);
+
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (msgDiv.parentNode) {
+                    msgDiv.classList.add('fade-out');
+                    setTimeout(() => msgDiv.remove(), 400);
+                }
+            }, 5000);
+        }
+    </script>
+
+    <script src="{{ url_for('static', filename='network_check.js') }}"></script>
+    <script src="{{ url_for('static', filename='sidebar_loader.js') }}"></script>
+    <script src="{{ url_for('static', filename='global_notifications.js') }}"></script>
+</body>
+
+</html>

@@ -1,0 +1,17 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": [],
+    "files.exclude": {
+        "**/.env": true,
+        "**/.env.*": true,
+        ".env": true
+    },
+    "search.exclude": {
+        "**/.env": true,
+        "**/.env.*": true,
+        ".env": true
+    },
+    "github.copilot.enable": {
+        "dotenv": false
+    }
+}

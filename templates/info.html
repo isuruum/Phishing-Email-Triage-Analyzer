@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Triage - Info</title>
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/tailwind.css') }}">
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+
+        .text-gradient {
+            background: linear-gradient(90deg, #0d6efd, #0890ffff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="max-w-5xl mx-auto py-12 px-6">
+
+        <!-- Page Header -->
+        <div class="mb-10">
+            <h1 class="text-2xl font-bold text-gray-800 text-gradient">Software Information</h1>
+            <p class="mt-2 text-gray-600">Overview and details about the Email Triage system.</p>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
+                <span class="bg-blue-100 text-blue-600 p-2 rounded-lg mr-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </span>
+                About
+            </h2>
+            <p class="text-gray-600 leading-relaxed text-lg">
+                Email Triage is an advanced automated analysis platform designed to streamline the vetting process for
+                suspicious emails.
+                It ingests email submissions, parses headers and attachments, and leverages external threat intelligence
+                APIs (such as VirusTotal)
+                to detect malicious indicators. The system provides analysts with a centralized dashboard, real-time
+                risk scoring, and detailed
+                forensic reports to facilitate rapid incident response.
+            </p>
+        </div>
+
+        <!-- Key Components Section -->
+        <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                <span class="bg-purple-100 text-purple-600 p-2 rounded-lg mr-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                </span>
+                Key Components
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <h3 class="font-bold text-gray-900 text-lg mb-2">Triage Dashboard</h3>
+                    <p class="text-gray-600">A centralized table view for monitoring submission status, risk scores, and
+                        quick actions.</p>
+                </div>
+                <div class="p-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <h3 class="font-bold text-gray-900 text-lg mb-2">Analysis Engine</h3>
+                    <p class="text-gray-600">Backend processing unit that extracts IOCs and queries threat intelligence
+                        providers.</p>
+                </div>
+                <div class="p-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <h3 class="font-bold text-gray-900 text-lg mb-2">Detail View</h3>
+                    <p class="text-gray-600">In-depth report interface displaying malicious URLs, file hashes, and
+                        network metadata.</p>
+                </div>
+                <div class="p-5 bg-gray-50 rounded-xl border border-gray-100">
+                    <h3 class="font-bold text-gray-900 text-lg mb-2">Notification System</h3>
+                    <p class="text-gray-600">Real-time alerts and toast notifications to keep analysts informed of
+                        completed scans.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Scripts -->
+    <script src="/static/sidebar_loader.js"></script>
+    <script src="/static/global_notifications.js"></script>
+    <script src="/static/network_check.js"></script>
+</body>
+
+</html>
