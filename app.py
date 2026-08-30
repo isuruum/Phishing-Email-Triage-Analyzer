@@ -63,7 +63,7 @@ def add_security_headers(response):
     return response
 
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash" #You can change this to any other Gemini model if needed
 vt_api_lock = threading.Lock()
 # Initialize a ThreadPoolExecutor to limit concurrent analysis threads
 analysis_executor = ThreadPoolExecutor(max_workers=5)
