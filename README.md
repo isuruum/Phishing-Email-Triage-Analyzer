@@ -15,11 +15,12 @@ The Phishing Email Triage & Analyzer is a lightweight web application built with
 * Web Dashboard & Background Processing: Provides a centralized dashboard with asynchronous background analysis handled by a thread pool.
 * Detailed View: Offers a comprehensive detail page for each email, including direct links to full raw VirusTotal reports for further investigation.
 
-## 🛠️ Installation
 > [!IMPORTANT]
 > You need Python 3.8+ installed on your system.
 
-Clone this repository or download the script.
+## 🛠️ Installation (Windows)
+
+Clone this repository
 1. Install a virtual environment
    ```python
    python -m venv venv
@@ -39,6 +40,23 @@ Clone this repository or download the script.
    ```python
    pip install -r requirements.txt
    ```
+
+## 🛠️ Installation (Linux)
+
+Clone this repository
+1. Create a virtual environment:
+   ```bash
+   python3 -m venv venv
+   ```
+2. Activate the virtual environment:
+   ```bash
+   source venv/bin/activate
+   ```
+3. Install the required Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
 ## ⚙️ Configuration
 The application requires API keys for full analysis functionality. You must set these keys in a local `.env` file.
 1. Create a `.env` file in the root directory of the project.
@@ -48,6 +66,7 @@ The application requires API keys for full analysis functionality. You must set 
    GEMINI_API_KEY="YOUR_GEMINI_API_KEY_HERE"
    FLASK_DEBUG="False"
    ```
+
 > [!NOTE]
 > You need an API key that supports v3 lookups (typically a free/public key works for basic scanning)
 
