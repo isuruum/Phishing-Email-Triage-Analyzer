@@ -1,13 +1,6 @@
+#Ignore Secrets File
 .env
-uploads/20251218004258_sample-1072.eml
-templates/user_manual.html
 
-# Tailwind CSS dependencies & build artifacts
-tailwindcss.exe
-node_modules/
-package-lock.json
-.package-lock.json
-
-# Optional: Ignore compiled CSS if you build it dynamically on the server
-# static/dist/
-
+#Ignore Database File
+database.db
+.gitignore
