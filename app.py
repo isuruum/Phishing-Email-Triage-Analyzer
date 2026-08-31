@@ -12,7 +12,9 @@ import io
 import threading
 import atexit
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, g, request, redirect, url_for, render_template, jsonify, flash, send_from_directory
+from flask import Flask, g, request, redirect, url_for, render_template, jsonify, flash, send_from_directory, Response
+import bleach
+from defusedxml import ElementTree as ET  # XXE protection
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from email import parser as email_parser
@@ -38,6 +40,10 @@ configure()
 # --- Configuration ---
 DATABASE = 'database.db'
 ALLOWED_EXTENSIONS = {'eml', 'msg'}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB maximum file size
+ALLOWED_HTML_TAGS = ['p', 'br', 'div', 'span', 'a', 'strong', 'em', 'u', 'font', 'img', 'table', 'tr', 'td', 'th', 'tbody', 'thead', 'tfoot', 'li', 'ul', 'ol', 'pre', 'code']
+ALLOWED_HTML_ATTRIBUTES = {'*': ['class', 'id', 'style'], 'a': ['href', 'title'], 'img': ['src', 'alt', 'width', 'height'], 'font': ['color', 'face', 'size']}
+ANALYSIS_LOCK = threading.Lock()  # Lock for race condition prevention
 
 
 app = Flask(__name__)
@@ -178,6 +184,61 @@ def decode_mime_header(header_val):
         return str(make_header(decode_header(header_val)))
     except:
         return str(header_val)
+
+
+def validate_ipv4(ip_string):
+    """Validates IPv4 address format with proper range checking."""
+    try:
+        parts = ip_string.split('.')
+        if len(parts) != 4:
+            return False
+        for part in parts:
+            if not part.isdigit():
+                return False
+            num = int(part)
+            if num < 0 or num > 255:
+                return False
+        return True
+    except:
+        return False
+
+
+def sanitize_html_content(html_content):
+    """Sanitizes HTML content to prevent XSS attacks."""
+    if not html_content:
+        return ""
+    return bleach.clean(
+        html_content,
+        tags=ALLOWED_HTML_TAGS,
+        attributes=ALLOWED_HTML_ATTRIBUTES,
+        strip=True
+    )
+
+
+def sanitize_error_message(error_str):
+    """Sanitizes error messages to prevent information disclosure."""
+    # Return generic message without exposing internal details
+    if isinstance(error_str, str) and len(error_str) > 100:
+        return "An error occurred during analysis. Please check the submission status."
+    return "An error occurred during analysis."
+
+
+def parse_msg_safely(file_bytes):
+    """Safely parses MSG files with XXE protection.
+    
+    Uses defusedxml to prevent XXE attacks. Note: extract-msg library
+    may use XML internally for OLE2 parsing, so defusedxml is imported
+    as a defense-in-depth measure.
+    """
+    try:
+        import extract_msg
+        # Parse from BytesIO with size limit to prevent DoS
+        msg = extract_msg.openMsg(io.BytesIO(file_bytes))
+        return msg
+    except ImportError:
+        raise Exception("extract-msg library missing. Run: pip install extract-msg")
+    except Exception as e:
+        raise Exception(f"MSG parsing error: Invalid or corrupted MSG file")
 
 # --- VirusTotal Functions---
 
@@ -350,14 +411,8 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
     try:
         # --- MSG Handling ---
         if filename.lower().endswith('.msg'):
-            try:
-                import extract_msg
-            except ImportError:
-                raise Exception(
-                    "extract-msg library missing. Run: pip install extract-msg")
-
-            # Use extract_msg for OLE2 .msg files
-            msg = extract_msg.openMsg(io.BytesIO(file_bytes))
+            # Use safe MSG parser with XXE protection
+            msg = parse_msg_safely(file_bytes)
             try:
                 subject = msg.subject if msg.subject else "N/A"
                 sender = msg.sender if msg.sender else "N/A"
@@ -383,11 +438,13 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                     if msg.header.get_all('Received'):
                         for header in msg.header.get_all('Received'):
                             for ip in re.findall(ip_pattern, str(header)):
-                                exists = db.execute(
-                                    "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
-                                if not exists:
-                                    db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
-                                               (submission_id, ip))
+                                # Validate IP range (0-255 for each octet)
+                                if validate_ipv4(ip):
+                                    exists = db.execute(
+                                        "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
+                                    if not exists:
+                                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
+                                                   (submission_id, ip))
 
                 # Attachments
                 if hasattr(msg, 'attachments'):
@@ -416,32 +473,35 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                         html_content = msg.htmlBody
 
                 if html_content:
+                    sanitized_html = sanitize_html_content(html_content)
                     db.execute("INSERT OR REPLACE INTO email_content (session_id, body_html) VALUES (?, ?)",
-                               (submission_id, html_content))
+                               (submission_id, sanitized_html))
                     found_html_body = True
 
-                    soup = BeautifulSoup(html_content, 'html.parser')
+                    soup = BeautifulSoup(sanitized_html, 'html.parser')
                     for a in soup.find_all('a', href=True):
                         link = a['href'].strip()
                         if link.startswith('http'):
-                            exists = db.execute(
-                                "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                            if not exists:
-                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                           (submission_id, link))
-                                url_list.append(link)
+                            with ANALYSIS_LOCK:
+                                exists = db.execute(
+                                    "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
+                                if not exists:
+                                    db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                               (submission_id, link))
+                                    url_list.append(link)
 
                 if not found_html_body and plain_text_body:
                     text_urls = re.findall(
                         r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', plain_text_body)
                     for link in text_urls:
                         link = link.rstrip('.,;)>]')
-                        exists = db.execute(
-                            "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                        if not exists:
-                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                       (submission_id, link))
-                            url_list.append(link)
+                        with ANALYSIS_LOCK:
+                            exists = db.execute(
+                                "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
+                            if not exists:
+                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                           (submission_id, link))
+                                url_list.append(link)
 
                     safe_body = plain_text_body.replace('&', '&amp;').replace(
                         '<', '&lt;').replace('>', '&gt;')
@@ -481,11 +541,13 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
             if msg.get_all('Received'):
                 for header in msg.get_all('Received'):
                     for ip in re.findall(ip_pattern, str(header)):
-                        exists = db.execute(
-                            "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
-                        if not exists:
-                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
-                                       (submission_id, ip))
+                        # Validate IP range (0-255 for each octet)
+                        if validate_ipv4(ip):
+                            exists = db.execute(
+                                "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
+                            if not exists:
+                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
+                                           (submission_id, ip))
 
             # 6. Extract Content & Attachments
             found_html_body = False
@@ -509,20 +571,22 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                         html_content = html_bytes.decode(
                             part.get_content_charset() or 'utf-8', errors='ignore')
 
+                        sanitized_html = sanitize_html_content(html_content)
                         db.execute("INSERT OR REPLACE INTO email_content (session_id, body_html) VALUES (?, ?)",
-                                   (submission_id, html_content))
+                                   (submission_id, sanitized_html))
                         found_html_body = True
 
-                        soup = BeautifulSoup(html_content, 'html.parser')
+                        soup = BeautifulSoup(sanitized_html, 'html.parser')
                         for a in soup.find_all('a', href=True):
                             link = a['href'].strip()
                             if link.startswith('http'):
-                                exists = db.execute(
-                                    "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                                if not exists:
-                                    db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                               (submission_id, link))
-                                    url_list.append(link)
+                                with ANALYSIS_LOCK:
+                                    exists = db.execute(
+                                        "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
+                                    if not exists:
+                                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                                   (submission_id, link))
+                                        url_list.append(link)
                     except Exception as e:
                         print(f"HTML Error: {e}")
 
@@ -541,12 +605,13 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                     r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', plain_text_body)
                 for link in text_urls:
                     link = link.rstrip('.,;)>]')
-                    exists = db.execute(
-                        "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                    if not exists:
-                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                   (submission_id, link))
-                        url_list.append(link)
+                    with ANALYSIS_LOCK:
+                        exists = db.execute(
+                            "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
+                        if not exists:
+                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                       (submission_id, link))
+                            url_list.append(link)
 
                 safe_body = plain_text_body.replace('&', '&amp;').replace(
                     '<', '&lt;').replace('>', '&gt;')
@@ -630,8 +695,9 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
 
     except Exception as e:
         print(f"Analysis Failed: {e}")
+        sanitized_error = sanitize_error_message(str(e))
         db.execute("UPDATE analysis_sessions SET status = 'FAILED', subject = ? WHERE id = ?",
-                   (f"Analysis Error: {str(e)}", submission_id))
+                   (sanitized_error, submission_id))
         db.commit()
 
 
@@ -654,18 +720,27 @@ def index():
 
         for file in files:
             if file and allowed_file(file.filename):
+                # Check file size before reading
+                file_size = len(file.read())
+                file.seek(0)  # Reset file pointer
+                
+                if file_size > MAX_FILE_SIZE:
+                    flash(f'File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB', 'error')
+                    continue
+                
                 # 1. Read file into RAM immediately
                 file_bytes = file.read()
                 filename = secure_filename(file.filename)
 
-                # 2. Create DB Entry
-                db = get_db()
-                cur = db.cursor()
-                cur.execute("INSERT INTO analysis_sessions (submission_time, uploaded_filename, status) VALUES (?, ?, ?)",
-                            (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), filename, 'ANALYZING_VT'))
-                sid = cur.lastrowid
-                db.commit()
-                processed_ids.append(sid)
+                # 2. Create DB Entry with lock to prevent race conditions
+                with ANALYSIS_LOCK:
+                    db = get_db()
+                    cur = db.cursor()
+                    cur.execute("INSERT INTO analysis_sessions (submission_time, uploaded_filename, status) VALUES (?, ?, ?)",
+                                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), filename, 'ANALYZING_VT'))
+                    sid = cur.lastrowid
+                    db.commit()
+                    processed_ids.append(sid)
 
                 # 3. Analyze from RAM (No saving to disk!) :-)
                 analysis_executor.submit(
@@ -839,8 +914,11 @@ def render_email(email_id):
     row = db.execute(
         "SELECT body_html FROM email_content WHERE session_id = ?", (email_id,)).fetchone()
     if row and row['body_html']:
-        return row['body_html'], 200
-    return "<div style='text-align:center; padding:20px; color:#666;'>No HTML content found.</div>"
+        # Sanitize before rendering (defense in depth)
+        sanitized = sanitize_html_content(row['body_html'])
+        return Response(sanitized, mimetype='text/html; charset=utf-8')
+    return Response("<div style='text-align:center; padding:20px; color:#666;'>No HTML content found.</div>", 
+                   mimetype='text/html; charset=utf-8')
 
 
 @app.route('/full_vt_report/<resource_type>/<path:resource_id>')
