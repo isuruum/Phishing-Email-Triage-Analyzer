@@ -32,7 +32,7 @@ configure()
 
 # -----------------------------------------------------------------------------
 # Program: Phishing Email Triage Analyzer
-# Version: 8.1 (Stable) (Supports .eml & .msg files)
+# Version: 9.0 (Stable) (Supports .eml & .msg files)
 # Description: A Python Flask-based web app to analyze email files for threats using VirusTotal
 # Author: Isuru Madurapperuma
 # -----------------------------------------------------------------------------
