@@ -1,5 +1,5 @@
 # 📧 Phishing Email Triage Analyzer
-![Status](https://img.shields.io/badge/Status-Educational-blue) ![Python](https://img.shields.io/badge/Python-3.8+-yellow)
+![Status](https://img.shields.io/badge/Status-Educational-blue) ![Python](https://img.shields.io/badge/Python-3.8+-yellow) ![GitHub stars](https://img.shields.io/github/stars/isuruum/Phishing-Email-Triage-Analyzer) ![GitHub issues](https://img.shields.io/github/issues/isuruum/Phishing-Email-Triage-Analyzer) ![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask) ![SQLite](https://img.shields.io/badge/SQLite-3.x-003B57?logo=sqlite)
 
 ![alt text](Rdmeimg/tableview.png)
 
