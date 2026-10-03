@@ -23,7 +23,7 @@ The Phishing Email Triage & Analyzer is a lightweight web application built with
 Clone this repository
 1. Install a virtual environment
    ```python
-   python -m venv venv
+   python -m venv .venv
    ```
 2. Activate virtual environment (CMD)
    ```
