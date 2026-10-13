@@ -27,7 +27,7 @@ Clone this repository
    ```
 2. Activate virtual environment (CMD)
    ```
-   venv\Scripts\activate.bat
+   venv\Scripts\activate.ps1
    ```
    If your terminal shows this: ***cannot be loaded because running scripts is disabled on this system***
    Go to [Managing the execution policy with PowerShell](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.5#managing-the-execution-policy-with-powershell)
