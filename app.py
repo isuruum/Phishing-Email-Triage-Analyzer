@@ -11,6 +11,7 @@ import base64
 import io
 import threading
 import atexit
+import signal
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, g, request, redirect, url_for, render_template, jsonify, flash, send_from_directory, Response
 import bleach
@@ -85,6 +86,9 @@ def get_db():
         db = g._database = sqlite3.connect(DATABASE, timeout=60)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
+        db.execute("PRAGMA journal_mode = WAL")
+        db.execute("PRAGMA synchronous = NORMAL")
+        db.execute("PRAGMA busy_timeout = 60000")
     return db
 
 
@@ -100,6 +104,8 @@ def init_db():
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("PRAGMA synchronous = NORMAL")
 
         # 1. Master Session Table
         cursor.execute("""
@@ -403,10 +409,13 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
     """Parses email from RAM bytes and populates relational tables."""
     db = get_db()
 
-    # Initialize lists for VT analysis
+    # Initialize lists and sets for VT analysis & deduplication
     url_list = []
+    url_set = set()
     hash_list = []
+    hash_set = set()
     ip_list = []
+    ip_set = set()
 
     try:
         # --- MSG Handling ---
@@ -439,12 +448,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                         for header in msg.header.get_all('Received'):
                             for ip in re.findall(ip_pattern, str(header)):
                                 # Validate IP range (0-255 for each octet)
-                                if validate_ipv4(ip):
-                                    exists = db.execute(
-                                        "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
-                                    if not exists:
-                                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
-                                                   (submission_id, ip))
+                                if validate_ipv4(ip) and ip not in ip_set:
+                                    ip_set.add(ip)
+                                    ip_list.append(ip)
+                                    db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
+                                               (submission_id, ip))
 
                 # Attachments
                 if hasattr(msg, 'attachments'):
@@ -453,9 +461,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                         payload = att.data
                         if payload:
                             sha256 = hashlib.sha256(payload).hexdigest()
-                            db.execute("INSERT INTO email_artifacts (session_id, type, value, filename, vt_result) VALUES (?, 'file_hash', ?, ?, 'PENDING')",
-                                       (submission_id, sha256, fname))
-                            hash_list.append(sha256)
+                            if sha256 not in hash_set:
+                                hash_set.add(sha256)
+                                hash_list.append(sha256)
+                                db.execute("INSERT INTO email_artifacts (session_id, type, value, filename, vt_result) VALUES (?, 'file_hash', ?, ?, 'PENDING')",
+                                           (submission_id, sha256, fname))
 
                 # Body
                 found_html_body = False
@@ -481,27 +491,22 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                     soup = BeautifulSoup(sanitized_html, 'html.parser')
                     for a in soup.find_all('a', href=True):
                         link = a['href'].strip()
-                        if link.startswith('http'):
-                            with ANALYSIS_LOCK:
-                                exists = db.execute(
-                                    "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                                if not exists:
-                                    db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                               (submission_id, link))
-                                    url_list.append(link)
+                        if link.startswith('http') and link not in url_set:
+                            url_set.add(link)
+                            url_list.append(link)
+                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                       (submission_id, link))
 
                 if not found_html_body and plain_text_body:
                     text_urls = re.findall(
                         r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', plain_text_body)
                     for link in text_urls:
                         link = link.rstrip('.,;)>]')
-                        with ANALYSIS_LOCK:
-                            exists = db.execute(
-                                "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                            if not exists:
-                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                           (submission_id, link))
-                                url_list.append(link)
+                        if link.startswith('http') and link not in url_set:
+                            url_set.add(link)
+                            url_list.append(link)
+                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                       (submission_id, link))
 
                     safe_body = plain_text_body.replace('&', '&amp;').replace(
                         '<', '&lt;').replace('>', '&gt;')
@@ -523,7 +528,6 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
             # 3. Update Session Info
             db.execute("UPDATE analysis_sessions SET subject = ?, sender = ?, receiver = ?, status = 'ANALYZING_VT' WHERE id = ?",
                        (subject, sender, receiver, submission_id))
-            db.commit()
 
             # 4. Extract & Save Headers
             target_headers = ["Received-SPF", "Authentication-Results", "DKIM-Signature",
@@ -542,12 +546,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                 for header in msg.get_all('Received'):
                     for ip in re.findall(ip_pattern, str(header)):
                         # Validate IP range (0-255 for each octet)
-                        if validate_ipv4(ip):
-                            exists = db.execute(
-                                "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='ip' AND value=?", (submission_id, ip)).fetchone()
-                            if not exists:
-                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
-                                           (submission_id, ip))
+                        if validate_ipv4(ip) and ip not in ip_set:
+                            ip_set.add(ip)
+                            ip_list.append(ip)
+                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'ip', ?, 'PENDING')",
+                                       (submission_id, ip))
 
             # 6. Extract Content & Attachments
             found_html_body = False
@@ -560,9 +563,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                     payload = part.get_payload(decode=True)
                     if payload:
                         sha256 = hashlib.sha256(payload).hexdigest()
-                        db.execute("INSERT INTO email_artifacts (session_id, type, value, filename, vt_result) VALUES (?, 'file_hash', ?, ?, 'PENDING')",
-                                   (submission_id, sha256, fname))
-                        hash_list.append(sha256)
+                        if sha256 not in hash_set:
+                            hash_set.add(sha256)
+                            hash_list.append(sha256)
+                            db.execute("INSERT INTO email_artifacts (session_id, type, value, filename, vt_result) VALUES (?, 'file_hash', ?, ?, 'PENDING')",
+                                       (submission_id, sha256, fname))
 
                 # B. HTML Body & URLs
                 if part.get_content_type() == 'text/html':
@@ -579,14 +584,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                         soup = BeautifulSoup(sanitized_html, 'html.parser')
                         for a in soup.find_all('a', href=True):
                             link = a['href'].strip()
-                            if link.startswith('http'):
-                                with ANALYSIS_LOCK:
-                                    exists = db.execute(
-                                        "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                                    if not exists:
-                                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                                   (submission_id, link))
-                                        url_list.append(link)
+                            if link.startswith('http') and link not in url_set:
+                                url_set.add(link)
+                                url_list.append(link)
+                                db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                           (submission_id, link))
                     except Exception as e:
                         print(f"HTML Error: {e}")
 
@@ -605,13 +607,11 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                     r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', plain_text_body)
                 for link in text_urls:
                     link = link.rstrip('.,;)>]')
-                    with ANALYSIS_LOCK:
-                        exists = db.execute(
-                            "SELECT 1 FROM email_artifacts WHERE session_id=? AND type='url' AND value=?", (submission_id, link)).fetchone()
-                        if not exists:
-                            db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
-                                       (submission_id, link))
-                            url_list.append(link)
+                    if link.startswith('http') and link not in url_set:
+                        url_set.add(link)
+                        url_list.append(link)
+                        db.execute("INSERT INTO email_artifacts (session_id, type, value, vt_result) VALUES (?, 'url', ?, 'PENDING')",
+                                   (submission_id, link))
 
                 safe_body = plain_text_body.replace('&', '&amp;').replace(
                     '<', '&lt;').replace('>', '&gt;')
@@ -619,12 +619,7 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
                 db.execute("INSERT OR REPLACE INTO email_content (session_id, body_html) VALUES (?, ?)",
                            (submission_id, wrapped_body))
 
-        # Populate ip_list from DB to ensure we analyze what we saved
-        ip_rows = db.execute(
-            "SELECT value FROM email_artifacts WHERE session_id=? AND type='ip'", (submission_id,)).fetchall()
-        for row in ip_rows:
-            ip_list.append(row['value'])
-
+        # Commit initial parsing results so SQLite transaction is closed before VT API calls
         db.commit()
 
         # --- VT ANALYSIS (Loop through DB artifacts) ---
@@ -695,10 +690,17 @@ def start_analysis_in_memory(file_bytes, filename, submission_id):
 
     except Exception as e:
         print(f"Analysis Failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         sanitized_error = sanitize_error_message(str(e))
-        db.execute("UPDATE analysis_sessions SET status = 'FAILED', subject = ? WHERE id = ?",
-                   (sanitized_error, submission_id))
-        db.commit()
+        try:
+            db.execute("UPDATE analysis_sessions SET status = 'FAILED', subject = ? WHERE id = ?",
+                       (sanitized_error, submission_id))
+            db.commit()
+        except Exception as update_err:
+            print(f"Failed to update session status to FAILED: {update_err}")
 
 
 def background_analysis(app_instance, file_bytes, filename, sid):
@@ -716,35 +718,38 @@ def index():
             flash('No files selected', 'error')
             return redirect(url_for('index'))
 
-        processed_ids = []
-
+        files_to_process = []
         for file in files:
             if file and allowed_file(file.filename):
-                # Check file size before reading
-                file_size = len(file.read())
-                file.seek(0)  # Reset file pointer
-                
-                if file_size > MAX_FILE_SIZE:
-                    flash(f'File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB', 'error')
-                    continue
-                
-                # 1. Read file into RAM immediately
                 file_bytes = file.read()
+                if len(file_bytes) > MAX_FILE_SIZE:
+                    flash(f'File too large ({secure_filename(file.filename)}). Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f} MB', 'error')
+                    continue
                 filename = secure_filename(file.filename)
+                files_to_process.append((file_bytes, filename))
 
-                # 2. Create DB Entry with lock to prevent race conditions
-                with ANALYSIS_LOCK:
-                    db = get_db()
-                    cur = db.cursor()
-                    cur.execute("INSERT INTO analysis_sessions (submission_time, uploaded_filename, status) VALUES (?, ?, ?)",
-                                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), filename, 'ANALYZING_VT'))
-                    sid = cur.lastrowid
-                    db.commit()
-                    processed_ids.append(sid)
+        if not files_to_process:
+            flash('No valid files to process', 'error')
+            return redirect(url_for('index'))
 
-                # 3. Analyze from RAM (No saving to disk!) :-)
-                analysis_executor.submit(
-                    background_analysis, app, file_bytes, filename, sid)
+        processed_ids = []
+        tasks_to_submit = []
+
+        db = get_db()
+        submission_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for file_bytes, filename in files_to_process:
+            cur = db.cursor()
+            cur.execute("INSERT INTO analysis_sessions (submission_time, uploaded_filename, status) VALUES (?, ?, ?)",
+                        (submission_time, filename, 'ANALYZING_VT'))
+            sid = cur.lastrowid
+            processed_ids.append(sid)
+            tasks_to_submit.append((file_bytes, filename, sid))
+        db.commit()
+
+        # Submit background tasks only after all sessions are safely committed to DB
+        for file_bytes, filename, sid in tasks_to_submit:
+            analysis_executor.submit(
+                background_analysis, app, file_bytes, filename, sid)
 
         if processed_ids:
             flash(
@@ -1242,13 +1247,26 @@ def vt_usage():
     return jsonify({"date": today, "usage": usage})
 
 
+werkzeug.serving.WSGIRequestHandler.server_version = ""
+werkzeug.serving.WSGIRequestHandler.sys_version = ""
+
+
 if __name__ == '__main__':
+    def handle_shutdown(signum=None, frame=None):
+        print("\nStopping server...")
+        analysis_executor.shutdown(wait=False, cancel_futures=True)
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, handle_shutdown)
+
     init_db()
     print("Database Initialized. In-Memory Analysis Ready.")
     debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    host = os.getenv("FLASK_HOST", "127.0.0.1")
+    port = int(os.getenv("FLASK_PORT", "5000"))
     try:
-        app.run(host='0.0.0.0', port=5000, debug=debug_mode)
+        app.run(host=host, port=port, debug=debug_mode)
     except KeyboardInterrupt:
-        pass
-werkzeug.serving.WSGIRequestHandler.server_version = ""
-werkzeug.serving.WSGIRequestHandler.sys_version = ""
+        handle_shutdown()
